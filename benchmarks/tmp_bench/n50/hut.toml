@@ -1,0 +1,8 @@
+[package]
+name = "bench-50"
+version = "0.1.0"
+edition = "2024"
+
+[build]
+kind = "executable"
+sources = ["src/*.c"]

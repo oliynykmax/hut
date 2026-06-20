@@ -1,0 +1,9 @@
+[package]
+name = "fib-bench"
+version = "0.1.0"
+edition = "2024"
+
+[build]
+kind = "executable"
+sources = ["src/fib.c"]
+opt-level = 2
