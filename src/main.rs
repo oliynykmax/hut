@@ -1239,11 +1239,14 @@ fn cmd_upgrade() -> HutResult<()> {
         return Err(HutError::Other(format!("build failed: {}", stderr.trim())));
     }
 
-    // Copy new binary over the current one
+    // Replace the current binary atomically.
+    // Can't copy over a running binary — use rename (Linux allows it).
     let current_exe = std::env::current_exe()?;
     let new_binary = src_dir.join("target/release/hut");
+    let tmp_path = current_exe.with_extension("tmp");
 
-    std::fs::copy(&new_binary, &current_exe)?;
+    std::fs::copy(&new_binary, &tmp_path)?;
+    std::fs::rename(&tmp_path, &current_exe)?;
 
     println!(
         "{} hut upgraded from v{} to v{}",
