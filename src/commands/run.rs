@@ -1,17 +1,16 @@
 // ── cmd_run ──────────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use colored::Colorize;
 
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
+use hut::lockfile::Lockfile;
 
 use crate::commands::{
-    HELLO_WORLD_C, HELLO_WORLD_CPP, available_compilers, cache_dir, find_project_root, hut_home,
-    lockfile_path, packages_dir,
+    cache_dir, find_project_root,
+    lockfile_path,
 };
 
 pub fn cmd_run(

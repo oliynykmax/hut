@@ -1,6 +1,5 @@
 // ── cmd_add ──────────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 
 use colored::Colorize;
 
@@ -9,8 +8,8 @@ use hut::error::{HutError, HutResult};
 use hut::lockfile::{LockedPackage, Lockfile};
 
 use crate::commands::{
-    HELLO_WORLD_C, HELLO_WORLD_CPP, available_compilers, cache_dir, find_project_root, hut_home,
-    lockfile_path, packages_dir,
+    cache_dir,
+    lockfile_path,
 };
 
 pub fn cmd_add(pkgs: &[String], dev: bool, build: bool) -> HutResult<()> {

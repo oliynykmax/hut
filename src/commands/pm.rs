@@ -1,14 +1,12 @@
 // ── cmd_publish, cmd_pm ──────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 
 use colored::Colorize;
 
-use crate::cli::{PmCommand, WorkspaceCommand};
-use crate::commands::{cache_dir, find_project_root, hut_home, lockfile_path, packages_dir};
+use crate::cli::PmCommand;
+use crate::commands::{cache_dir, hut_home};
 use hut::config::HutConfig;
-use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
+use hut::error::HutResult;
 
 pub fn cmd_publish() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;

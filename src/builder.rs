@@ -758,6 +758,63 @@ mod tests {
         assert_eq!(obj, Path::new("/test/project/target/.build/src/main.o"));
     }
 
+    #[test]
+    fn test_source_to_object_outside_root() {
+        // When source is NOT under project_root, strip_prefix fails and
+        // source_to_object falls back to using the filename
+        let root = Path::new("/test/project");
+        let source = Path::new("/some/other/path/main.c");
+        let obj = source_to_object(source, root, false);
+        assert_eq!(obj, Path::new("/test/project/target/.build/main.o"));
+    }
+
+    #[test]
+    fn test_source_to_object_no_parent() {
+        // When source has no parent directory (just a filename)
+        let root = Path::new("/test/project");
+        let source = Path::new("main.c");
+        let obj = source_to_object(source, root, false);
+        assert_eq!(obj, Path::new("/test/project/target/.build/main.o"));
+    }
+
+    // -----------------------------------------------------------------------
+    // is_object_fresh
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_is_object_fresh_missing_object() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("test.c");
+        let object = tmp.path().join("test.o");
+        std::fs::write(&source, "int x;").unwrap();
+        // Object doesn't exist yet
+        assert!(!is_object_fresh(&source, &object));
+    }
+
+    #[test]
+    fn test_is_object_fresh_object_newer() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("test.c");
+        let object = tmp.path().join("test.o");
+        std::fs::write(&source, "int x;").unwrap();
+        std::fs::write(&object, "object").unwrap();
+        // Object created after source
+        assert!(is_object_fresh(&source, &object));
+    }
+
+    #[test]
+    fn test_is_object_fresh_source_newer() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("test.c");
+        let object = tmp.path().join("test.o");
+        std::fs::write(&object, "object").unwrap();
+        // Brief sleep to ensure source is newer
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::fs::write(&source, "int x;").unwrap();
+        // Source modified after object
+        assert!(!is_object_fresh(&source, &object));
+    }
+
     // -----------------------------------------------------------------------
     // infer_cxx
     // -----------------------------------------------------------------------
@@ -826,5 +883,100 @@ mod tests {
             ar == "ar" || ar == "llvm-ar",
             "Expected 'ar' or 'llvm-ar', got '{ar}'"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // detect_compiler edge cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_detect_compiler_gcc_preference() {
+        // With "gcc" preference and gcc on PATH, should find gcc
+        let result = detect_compiler("gcc");
+        // On systems without gcc, this returns NoCompiler
+        match result {
+            Ok(compiler) => {
+                assert!(!compiler.cc.is_empty());
+                assert!(!compiler.is_clang || compiler.cc.contains("clang"));
+            }
+            Err(_) => {
+                // Acceptable: no gcc on this system
+            }
+        }
+    }
+
+    #[test]
+    fn test_detect_compiler_clang_preference() {
+        let result = detect_compiler("clang");
+        match result {
+            Ok(compiler) => {
+                assert!(!compiler.cc.is_empty());
+                // If preference is clang, we expect clang or fallback
+            }
+            Err(_) => {
+                // Acceptable if neither gcc nor clang exists
+            }
+        }
+    }
+
+    #[test]
+    fn test_detect_compiler_auto_preference() {
+        // "auto" or empty should try gcc, then clang, then cc
+        let result = detect_compiler("auto");
+        match result {
+            Ok(compiler) => {
+                assert!(!compiler.cc.is_empty());
+            }
+            Err(e) => {
+                // No compiler found
+                assert!(format!("{e}").contains("compiler"));
+            }
+        }
+    }
+
+    #[test]
+    fn test_detect_compiler_with_cc_env() {
+        // Set CC env var — should be picked up
+        unsafe { std::env::set_var("CC", "gcc"); }
+        let result = detect_compiler("auto");
+        unsafe { std::env::remove_var("CC"); }
+
+        match result {
+            Ok(compiler) => {
+                assert!(compiler.cc.contains("gcc") || compiler.cc.contains("cc"));
+            }
+            Err(_) => {
+                // gcc might not exist on PATH for command_exists check
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // is_source_file edge cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_is_source_file_cpp_edge_cases() {
+        // .C (capital C) is a C++ source extension
+        assert!(is_source_file(Path::new("main.C")));
+        // .c++m and .cppm are C++ module extensions
+        assert!(is_source_file(Path::new("module.cppm")));
+        assert!(is_source_file(Path::new("module.c++m")));
+        // Not source: object files, headers, etc
+        assert!(!is_source_file(Path::new("file.o")));
+        assert!(!is_source_file(Path::new("file.a")));
+        assert!(!is_source_file(Path::new("file.h")));
+        assert!(!is_source_file(Path::new("file.hpp")));
+    }
+
+    // -----------------------------------------------------------------------
+    // escape_rsp_arg backslash edge case
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_escape_rsp_arg_with_backslash() {
+        // Arguments with backslashes get escaped+quoted
+        let escaped = escape_rsp_arg(r"-DFOO=C:\path\to\something");
+        assert!(escaped.contains('\\'));
     }
 }

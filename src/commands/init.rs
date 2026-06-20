@@ -1,16 +1,13 @@
 // ── cmd_init ──────────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 
 use colored::Colorize;
 
 use hut::config::HutConfig;
-use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
+use hut::error::HutResult;
 
 use crate::commands::{
-    HELLO_WORLD_C, HELLO_WORLD_CPP, available_compilers, cache_dir, find_project_root, hut_home,
-    lockfile_path, packages_dir,
+    HELLO_WORLD_C, HELLO_WORLD_CPP, available_compilers,
 };
 
 pub fn cmd_init(name: Option<String>) -> HutResult<()> {

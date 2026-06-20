@@ -1,16 +1,13 @@
 // ── cmd_create ──────────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 
 use colored::Colorize;
 
 use hut::config::HutConfig;
-use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
+use hut::error::HutResult;
 
 use crate::commands::{
-    APP_MAIN_C, HELLO_WORLD_C, HELLO_WORLD_CPP, LIB_HEADER, LIB_SOURCE, RAYLIB_GAME_C,
-    available_compilers, cache_dir, find_project_root, hut_home, lockfile_path, packages_dir,
+    APP_MAIN_C, LIB_HEADER, LIB_SOURCE, RAYLIB_GAME_C,
 };
 
 pub fn cmd_create(template: &str) -> HutResult<()> {

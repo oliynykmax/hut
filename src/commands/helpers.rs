@@ -2,9 +2,7 @@
 
 use std::path::PathBuf;
 
-use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
 
 // ── Directories ───────────────────────────────────────────────────────────
 
@@ -58,18 +56,6 @@ pub fn command_exists(cmd: &str) -> bool {
 }
 
 // ── Miscellaneous ────────────────────────────────────────────────────────
-
-/// Parse a dependency spec like "user/lib@^1.0" → ("user/lib", Some("^1.0"))
-#[allow(dead_code)]
-fn parse_dep_spec(spec: &str) -> (String, Option<String>) {
-    if let Some(at_pos) = spec.find('@') {
-        let name = spec[..at_pos].to_string();
-        let version = spec[at_pos + 1..].to_string();
-        (name, Some(version))
-    } else {
-        (spec.to_string(), None)
-    }
-}
 
 /// Walk up from the current directory to find the project root (where hut.toml lives)
 pub fn find_project_root() -> HutResult<PathBuf> {

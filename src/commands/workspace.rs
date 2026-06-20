@@ -5,11 +5,9 @@ use std::process::Command;
 
 use colored::Colorize;
 
-use crate::cli::{PmCommand, WorkspaceCommand};
-use crate::commands::{cache_dir, find_project_root, hut_home, lockfile_path, packages_dir};
+use crate::cli::WorkspaceCommand;
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
 
 pub fn cmd_workspace(sub: WorkspaceCommand) -> HutResult<()> {
     match sub {

@@ -1,14 +1,12 @@
 // ── cmd_patch ──────────────────────────────────────────────────────────
 
-use std::path::PathBuf;
 
 use colored::Colorize;
 
-use crate::cli::{PmCommand, WorkspaceCommand};
-use crate::commands::{cache_dir, find_project_root, hut_home, lockfile_path, packages_dir};
+use crate::commands::{cache_dir, lockfile_path};
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
+use hut::lockfile::Lockfile;
 
 pub fn cmd_patch(pkg: &str) -> HutResult<()> {
     let (_config, _config_path) = HutConfig::find()?;

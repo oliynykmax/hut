@@ -240,3 +240,245 @@ impl PackagesIndex {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: build a minimal PackageEntry with just a repo.
+    fn test_entry(repo: &str) -> PackageEntry {
+        PackageEntry {
+            repo: repo.to_string(),
+            description: String::new(),
+            includes: vec![],
+            libs: vec![],
+            sources: vec![],
+            defines: vec![],
+            cflags: vec![],
+            ldflags: vec![],
+        }
+    }
+
+    /// Helper: build a PackagesIndex from a list of (name, PackageEntry) pairs.
+    fn test_index(entries: Vec<(&str, PackageEntry)>) -> PackagesIndex {
+        let packages: BTreeMap<String, PackageEntry> = entries
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        PackagesIndex { packages }
+    }
+
+    // ---------------------------------------------------------------------------
+    // find()
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn find_existing_package() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        let entry = idx.find("cli11");
+        assert!(entry.is_some());
+        assert_eq!(entry.unwrap().repo, "CLIUtils/CLI11");
+    }
+
+    #[test]
+    fn find_missing_package() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        assert!(idx.find("nonexistent").is_none());
+    }
+
+    #[test]
+    fn find_case_sensitive() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        // BTreeMap::get is case-sensitive, so "CLI11" won't match "cli11"
+        assert!(idx.find("cli11").is_some());
+        assert!(idx.find("CLI11").is_none());
+    }
+
+    // ---------------------------------------------------------------------------
+    // search()
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn search_by_name() {
+        let idx = test_index(vec![
+            ("cli11", test_entry("CLIUtils/CLI11")),
+            ("fmtlib", test_entry("fmtlib/fmt")),
+        ]);
+        let results = idx.search("cli");
+        assert_eq!(results.len(), 1);
+        assert_eq!(*results[0].0, "cli11");
+    }
+
+    #[test]
+    fn search_by_description() {
+        let idx = test_index(vec![
+            (
+                "fmtlib",
+                PackageEntry {
+                    description: "modern formatting library".to_string(),
+                    ..test_entry("fmtlib/fmt")
+                },
+            ),
+            ("cli11", test_entry("CLIUtils/CLI11")),
+        ]);
+        let results = idx.search("formatting");
+        assert_eq!(results.len(), 1);
+        assert_eq!(*results[0].0, "fmtlib");
+    }
+
+    #[test]
+    fn search_case_insensitive() {
+        let idx = test_index(vec![
+            (
+                "cli11",
+                PackageEntry {
+                    description: "Command-line parser".to_string(),
+                    ..test_entry("CLIUtils/CLI11")
+                },
+            ),
+        ]);
+        // Search uppercase query against lowercase name
+        let results = idx.search("CLI");
+        assert_eq!(results.len(), 1);
+        assert_eq!(*results[0].0, "cli11");
+    }
+
+    #[test]
+    fn search_no_match() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        let results = idx.search("zzz_nonexistent");
+        assert!(results.is_empty());
+    }
+
+    // ---------------------------------------------------------------------------
+    // repo_url()
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn repo_url_known_package() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        let url = idx.repo_url("cli11");
+        assert!(url.is_ok());
+        assert_eq!(url.unwrap(), "https://github.com/CLIUtils/CLI11.git");
+    }
+
+    #[test]
+    fn repo_url_unknown_package_returns_error() {
+        let idx = test_index(vec![("cli11", test_entry("CLIUtils/CLI11"))]);
+        let result = idx.repo_url("nonexistent");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, HutError::PackageNotFound(_)));
+        assert!(err.to_string().contains("nonexistent"));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Deserialization from TOML
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn deserialize_minimal_toml() {
+        let toml_str = r#"
+[packages]
+[packages.cli11]
+repo = "CLIUtils/CLI11"
+"#;
+        let idx: PackagesIndex = toml::from_str(toml_str).expect("valid TOML");
+        let entry = idx.find("cli11").expect("cli11 should exist");
+        assert_eq!(entry.repo, "CLIUtils/CLI11");
+        assert!(entry.description.is_empty());
+        assert!(entry.includes.is_empty());
+        assert!(entry.libs.is_empty());
+        assert!(entry.sources.is_empty());
+    }
+
+    #[test]
+    fn deserialize_full_toml() {
+        let toml_str = r#"
+[packages]
+[packages.mylib]
+repo = "user/mylib"
+description = "A test library"
+includes = ["include"]
+libs = ["mylib"]
+sources = ["src/*.c"]
+defines = ["MYLIB_STATIC"]
+cflags = ["-O2"]
+ldflags = ["-lpthread"]
+"#;
+        let idx: PackagesIndex = toml::from_str(toml_str).expect("valid TOML");
+        let entry = idx.find("mylib").expect("mylib should exist");
+        assert_eq!(entry.repo, "user/mylib");
+        assert_eq!(entry.description, "A test library");
+        assert_eq!(entry.includes, vec!["include"]);
+        assert_eq!(entry.libs, vec!["mylib"]);
+        assert_eq!(entry.sources, vec!["src/*.c"]);
+        assert_eq!(entry.defines, vec!["MYLIB_STATIC"]);
+        assert_eq!(entry.cflags, vec!["-O2"]);
+        assert_eq!(entry.ldflags, vec!["-lpthread"]);
+    }
+
+    #[test]
+    fn deserialize_missing_repo_field_errors() {
+        let toml_str = r#"
+[packages]
+[packages.badlib]
+description = "forgot the repo field"
+"#;
+        let result: Result<PackagesIndex, _> = toml::from_str(toml_str);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("repo") || msg.contains("missing field"));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Additional tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn search_multiple_matches() {
+        let idx = test_index(vec![
+            (
+                "cli11",
+                PackageEntry {
+                    description: "C++ command-line parser".to_string(),
+                    ..test_entry("CLIUtils/CLI11")
+                },
+            ),
+            (
+                "argparse",
+                PackageEntry {
+                    description: "argument parser".to_string(),
+                    ..test_entry("p-ranav/argparse")
+                },
+            ),
+            ("fmtlib", test_entry("fmtlib/fmt")),
+        ]);
+        let results = idx.search("parser");
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn search_matches_description_case_insensitively() {
+        let idx = test_index(vec![
+            (
+                "mylib",
+                PackageEntry {
+                    description: "AWESOME Library".to_string(),
+                    ..test_entry("user/mylib")
+                },
+            ),
+        ]);
+        let results = idx.search("awesome");
+        assert_eq!(results.len(), 1);
+        assert_eq!(*results[0].0, "mylib");
+    }
+
+    #[test]
+    fn repo_url_with_slashes_in_repo() {
+        let idx = test_index(vec![("tool", test_entry("owner/name/subtool"))]);
+        let url = idx.repo_url("tool").expect("should resolve");
+        assert_eq!(url, "https://github.com/owner/name/subtool.git");
+    }
+}

@@ -7,7 +7,7 @@ use colored::Colorize;
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
 
-use crate::commands::{cache_dir, command_exists, find_project_root, hut_home, lockfile_path};
+use crate::commands::{command_exists, find_project_root};
 
 pub fn cmd_fmt(check: bool) -> HutResult<()> {
     if !command_exists("clang-format") {

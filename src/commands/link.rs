@@ -4,11 +4,9 @@ use std::path::PathBuf;
 
 use colored::Colorize;
 
-use crate::cli::{PmCommand, WorkspaceCommand};
-use crate::commands::{cache_dir, find_project_root, hut_home, lockfile_path, packages_dir};
+use crate::commands::packages_dir;
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
-use hut::lockfile::{LockedPackage, Lockfile};
 
 pub fn cmd_link(path: Option<&str>) -> HutResult<()> {
     let link_path = path
