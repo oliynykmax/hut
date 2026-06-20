@@ -208,37 +208,19 @@ cp target/release/hut ~/.local/bin/
 curl -fsSL https://raw.githubusercontent.com/oliynykmax/hut/main/install.sh | bash
 ```
 
-### Prerequisites
+### Dependencies
 
-- **Rust** (to build hut itself)
-- **gcc** or **clang** (to compile C/C++ projects)
-- **git** (for fetching git-based dependencies)
+hut needs a C/C++ compiler toolchain on your system:
 
-### Rust Dependencies
+| Dependency | Why | Install |
+|---|---|---|
+| **gcc** or **clang** | Compiles C/C++ projects | `apt install gcc` or `apt install clang` |
+| **g++** or **clang++** | Compiles C++ projects (optional) | `apt install g++` or comes with clang |
+| **git** | Fetches git-based package dependencies | `apt install git` |
+| **libtcc** | JIT compilation via `hut run --jit` (optional) | `apt install tcc libtcc-dev` |
+| **Rust** | Builds hut itself from source | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 
-| Crate | Purpose |
-|-------|---------|
-| `clap` | CLI argument parsing (22 commands, aliases) |
-| `serde` / `serde_json` / `toml` | Config, lockfile, package manifest serialization |
-| `reqwest` | HTTP client for registry and package fetching |
-| `sha2` / `hex` | Package integrity verification (SHA-256) |
-| `tar` / `flate2` | Tarball extraction for fetched packages |
-| `semver` | Semantic version parsing and constraint matching |
-| `dirs` | XDG-compliant cache/config directory resolution |
-| `walkdir` | Recursive directory traversal for builds |
-| `glob` | Source file glob pattern matching |
-| `chrono` | Timestamps for cache freshness |
-| `colored` | Terminal colour output (cargo-style) |
-| `indicatif` | Progress bars for downloads |
-| `tempfile` | Temporary directories in tests |
-| `num_cpus` | Parallel job count detection |
-| `libloading` | Dynamic library loading for JIT (libtcc) |
-| `tokio` | Async runtime |
-| `anyhow` / `thiserror` | Error handling |
-| `clap_complete` | Shell completion generation |
-| `notify` | File system watcher for `hut dev` |
-
-Dev dependencies: `assert_cmd`, `predicates` (integration tests).
+> hut auto-detects available compilers at runtime. If you only have gcc, it uses gcc. If you have both, it asks which you prefer (once, saved to `hut.toml`).
 
 ---
 
