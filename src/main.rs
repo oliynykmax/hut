@@ -303,12 +303,16 @@ fn main() {
 
 /// 1. `hut init [name]`
 fn cmd_init(name: Option<String>) -> HutResult<()> {
-    let project_name = name.clone().unwrap_or_else(|| {
-        std::env::current_dir()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-            .unwrap_or_else(|| "my-project".to_string())
-    });
+    let project_name = name
+        .as_deref()
+        .filter(|n| *n != "." && *n != "./")
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+                .unwrap_or_else(|| "my-project".to_string())
+        });
 
     // If a project name was explicitly provided, create the directory and use it
     let project_dir = if let Some(ref dir_name) = name {

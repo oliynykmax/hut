@@ -17,27 +17,21 @@ const TCC_OUTPUT_MEMORY: c_int = 1;
 
 type TCCState = c_void;
 
-// Function pointer types
-type TccNewFn = unsafe extern "C" fn() -> *mut TCCState;
-type TccDeleteFn = unsafe extern "C" fn(*mut TCCState);
-type TccSetOutputTypeFn = unsafe extern "C" fn(*mut TCCState, c_int) -> c_int;
-type TccCompileStringFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int;
-type TccSetOptionsFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int;
-type TccRelocateFn = unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int;
-type TccGetSymbolFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void;
-
 // ── Dynamically loaded libtcc wrapper ──────────────────────────────────────
 
 /// A wrapper around a dynamically-loaded libtcc instance.
 /// The library is kept alive for the lifetime of this struct.
 pub struct Tcc {
     _lib: libloading::Library,
-    delete: TccDeleteFn,
-    set_options: TccSetOptionsFn,
-    compile_string: TccCompileStringFn,
-    relocate: TccRelocateFn,
-    get_symbol: TccGetSymbolFn,
     state: *mut TCCState,
+    // Raw function pointers extracted from the library.
+    // Dropping the Library invalidates these — that's why _lib stays alive.
+    delete_fn: unsafe extern "C" fn(*mut TCCState),
+    set_output_type_fn: unsafe extern "C" fn(*mut TCCState, c_int) -> c_int,
+    compile_string_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int,
+    set_options_fn: unsafe extern "C" fn(*mut TCCState, *const c_char),
+    relocate_fn: unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int,
+    get_symbol_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void,
 }
 
 // Safety: libtcc is thread-safe when each TCCState is used from one thread.
@@ -49,15 +43,13 @@ impl Tcc {
     pub fn new() -> Option<Self> {
         // Search paths in order
         let candidates = [
-            "/home/hermes/.local/lib/libtcc.so",
-            "/usr/local/lib/libtcc.so",
-            "/usr/lib/libtcc.so",
             "libtcc.so.0",
             "libtcc.so",
+            "/usr/local/lib/libtcc.so",
+            "/usr/lib/libtcc.so",
         ];
 
         let lib = candidates.iter().find_map(|p| {
-            // Only try to load if the file exists for absolute paths
             if p.starts_with('/') && !Path::new(p).exists() {
                 return None;
             }
@@ -65,58 +57,44 @@ impl Tcc {
         })?;
 
         unsafe {
-            // Get raw function pointers via transmute to avoid lifetime issues
-            let new: TccNewFn = {
-                let sym: libloading::Symbol<TccNewFn> = lib.get(b"tcc_new").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let delete: TccDeleteFn = {
-                let sym: libloading::Symbol<TccDeleteFn> = lib.get(b"tcc_delete").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let set_output_type: TccSetOutputTypeFn = {
-                let sym: libloading::Symbol<TccSetOutputTypeFn> =
-                    lib.get(b"tcc_set_output_type").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let compile_string: TccCompileStringFn = {
-                let sym: libloading::Symbol<TccCompileStringFn> =
-                    lib.get(b"tcc_compile_string").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let set_options: TccSetOptionsFn = {
-                let sym: libloading::Symbol<TccSetOptionsFn> = lib.get(b"tcc_set_options").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let relocate: TccRelocateFn = {
-                let sym: libloading::Symbol<TccRelocateFn> = lib.get(b"tcc_relocate").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
-            let get_symbol: TccGetSymbolFn = {
-                let sym: libloading::Symbol<TccGetSymbolFn> = lib.get(b"tcc_get_symbol").ok()?;
-                std::mem::transmute_copy(&sym)
-            };
+            // Extract raw function pointers (libloading Symbol deref gives the fn pointer)
+            let delete_fn: unsafe extern "C" fn(*mut TCCState) =
+                *lib.get(b"tcc_delete").ok()?;
+            let set_output_type_fn: unsafe extern "C" fn(*mut TCCState, c_int) -> c_int =
+                *lib.get(b"tcc_set_output_type").ok()?;
+            let compile_string_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int =
+                *lib.get(b"tcc_compile_string").ok()?;
+            // tcc_set_options returns void, NOT int
+            let set_options_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) =
+                *lib.get(b"tcc_set_options").ok()?;
+            let relocate_fn: unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int =
+                *lib.get(b"tcc_relocate").ok()?;
+            let get_symbol_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void =
+                *lib.get(b"tcc_get_symbol").ok()?;
 
             // Create the TCC state
-            let state = (new)();
+            let new_fn: unsafe extern "C" fn() -> *mut TCCState =
+                *lib.get(b"tcc_new").ok()?;
+            let state = new_fn();
             if state.is_null() {
                 return None;
             }
 
             // Set to memory output mode for JIT
-            if (set_output_type)(state, TCC_OUTPUT_MEMORY) != 0 {
-                (delete)(state);
+            if set_output_type_fn(state, TCC_OUTPUT_MEMORY) != 0 {
+                delete_fn(state);
                 return None;
             }
 
             Some(Tcc {
                 _lib: lib,
-                delete,
-                set_options,
-                compile_string,
-                relocate,
-                get_symbol,
                 state,
+                delete_fn,
+                set_output_type_fn,
+                compile_string_fn,
+                set_options_fn,
+                relocate_fn,
+                get_symbol_fn,
             })
         }
     }
@@ -125,17 +103,14 @@ impl Tcc {
     /// Must be called before compile().
     pub fn set_options(&mut self, options: &str) -> anyhow::Result<()> {
         let c_opts = CString::new(options).context("Options contained null bytes")?;
-        let ret = unsafe { (self.set_options)(self.state, c_opts.as_ptr()) };
-        if ret == -1 {
-            bail!("TCC set_options failed: {options}");
-        }
+        unsafe { (self.set_options_fn)(self.state, c_opts.as_ptr()) };
         Ok(())
     }
 
     /// Compile a C source string.
     pub fn compile(&mut self, source: &str) -> anyhow::Result<()> {
         let c_source = CString::new(source).context("Source contained null bytes")?;
-        let ret = unsafe { (self.compile_string)(self.state, c_source.as_ptr()) };
+        let ret = unsafe { (self.compile_string_fn)(self.state, c_source.as_ptr()) };
         if ret == -1 {
             bail!("TCC compilation failed");
         }
@@ -144,7 +119,7 @@ impl Tcc {
 
     /// Relocate and finalize the compiled code.
     pub fn relocate(&mut self) -> anyhow::Result<()> {
-        let ret = unsafe { (self.relocate)(self.state, std::ptr::null()) };
+        let ret = unsafe { (self.relocate_fn)(self.state, std::ptr::null()) };
         if ret == -1 {
             bail!("TCC relocation failed");
         }
@@ -154,7 +129,7 @@ impl Tcc {
     /// Get a symbol address (e.g., `main` function pointer).
     pub fn get_symbol(&self, name: &str) -> Option<*mut c_void> {
         let c_name = CString::new(name).ok()?;
-        let ptr = unsafe { (self.get_symbol)(self.state, c_name.as_ptr()) };
+        let ptr = unsafe { (self.get_symbol_fn)(self.state, c_name.as_ptr()) };
         if ptr.is_null() { None } else { Some(ptr) }
     }
 
@@ -190,7 +165,7 @@ impl Tcc {
 impl Drop for Tcc {
     fn drop(&mut self) {
         unsafe {
-            (self.delete)(self.state);
+            (self.delete_fn)(self.state);
         }
     }
 }
@@ -205,11 +180,7 @@ mod tests {
 
     #[test]
     fn test_tcc_new_when_available() {
-        // This should succeed on systems with libtcc installed;
-        // gracefully passes if not installed.
         let tcc = Tcc::new();
-        // We don't assert anything — just verify it doesn't panic
-        // and returns an Option as expected.
         if let Some(_tcc) = tcc {
             // Successfully loaded libtcc
         }
@@ -217,11 +188,7 @@ mod tests {
 
     #[test]
     fn test_tcc_new_returns_none_when_not_available() {
-        // Tcc::new() tries specific paths; if libtcc isn't installed,
-        // it returns None without panicking.
         let result = Tcc::new();
-        // Either Some (tcc installed) or None (not installed) — both valid.
-        // The key invariant: no panic.
         match result {
             Some(_) => {} // libtcc is available
             None => {}    // libtcc not installed — expected fallback
@@ -241,10 +208,8 @@ mod tests {
         };
 
         let source = r#"
-#include <stdio.h>
 int add(int a, int b) { return a + b; }
 "#;
-
         tcc.compile(source).expect("compilation should succeed");
     }
 
@@ -273,7 +238,6 @@ int add(int a, int b) { return a + b; }
             }
         };
 
-        // Empty source should compile fine (no code to compile)
         let result = tcc.compile("");
         assert!(result.is_ok(), "empty source should compile without error");
     }
@@ -390,7 +354,6 @@ int add(int a, int b) { return a + b; }
             }
         };
 
-        // A simple C program that returns argc - 1
         let source = r#"
 int main(int argc, char** argv) {
     return argc - 1;
@@ -423,7 +386,6 @@ int main(int argc, char** argv) {
         tcc.relocate().expect("relocate should succeed");
 
         let code = tcc.run_main(&[]).expect("run_main should succeed");
-        // run_main injects argv[0] = "hut-jit", so argc will be 1, exit code = 0
         assert_eq!(code, 0, "exit code should be 0 with no args");
     }
 
@@ -473,7 +435,6 @@ int main(int argc, char** argv) {
             }
         };
 
-        // No main function defined
         tcc.compile("int helper(void) { return 1; }")
             .expect("compile should succeed");
         tcc.relocate().expect("relocate should succeed");
@@ -501,42 +462,41 @@ int main(void) {
     return 0;
 }
 "#;
-        tcc.compile(source).expect("hello-world should compile");
-        tcc.relocate().expect("relocate should succeed");
+        tcc.compile(source).expect("compile hello world should succeed");
+        tcc.relocate().expect("relocate hello world should succeed");
+
         let code = tcc.run_main(&[]).expect("run_main should succeed");
+        assert_eq!(code, 0, "hello world should exit 0");
+    }
+
+    #[test]
+    fn test_set_options_and_compile_full_program() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.set_options("-O2 -DNDEBUG")
+            .expect("release options should succeed");
+
+        let source = r#"
+#include <stdio.h>
+#include <stdlib.h>
+int main(int argc, char** argv) {
+    if (argc > 1) {
+        printf("arg: %s\n", argv[1]);
+    }
+    return 0;
+}
+"#;
+        tcc.compile(source).expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let args: Vec<String> = vec!["prog".into(), "hello".into()];
+        let code = tcc.run_main(&args).expect("run_main should succeed");
         assert_eq!(code, 0);
-    }
-
-    // ── Null-byte safety ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_compile_null_byte_in_source() {
-        let mut tcc = match Tcc::new() {
-            Some(t) => t,
-            None => {
-                eprintln!("Skipping test: libtcc not available");
-                return;
-            }
-        };
-
-        // Compile a normal program — null-byte safety is handled by
-        // CString::new inside Tcc::compile, which rejects embedded nulls.
-        let result = tcc.compile("int main(void) { return 0; }");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_set_options_null_byte() {
-        let mut tcc = match Tcc::new() {
-            Some(t) => t,
-            None => {
-                eprintln!("Skipping test: libtcc not available");
-                return;
-            }
-        };
-
-        // Normal options should work fine
-        let result = tcc.set_options("-O2");
-        assert!(result.is_ok());
     }
 }
