@@ -61,21 +61,34 @@ impl PackagesIndex {
 
     /// Load the packages index. Order:
     /// 1. ~/.config/hut/packages.toml (user override — takes full precedence)
-    /// 2. Built-in index (compiled into binary)
+    /// 2. If that doesn't exist, copy the built-in index there, then use it.
+    /// 3. Built-in index (compiled into binary) as ultimate fallback.
     pub fn load_builtin() -> HutResult<Self> {
-        // User override at ~/.config/hut/packages.toml
-        let user_path = dirs::config_dir()
+        let config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("hut")
-            .join("packages.toml");
+            .join("hut");
+        let user_path = config_dir.join("packages.toml");
+
+        // User override exists — use it.
         if user_path.exists() {
             return Self::load(&user_path);
         }
 
-        // Fall back to compiled-in index
-        let index: PackagesIndex = toml::from_str(BUILTIN_PACKAGES)
-            .expect("Built-in packages.toml is invalid — fix it before building");
-        Ok(index)
+        // Auto-create ~/.config/hut/packages.toml from the built-in index.
+        if let Err(e) = std::fs::create_dir_all(&config_dir) {
+            eprintln!("warning: Could not create {}: {e}", config_dir.display());
+        } else if let Err(e) = std::fs::write(&user_path, BUILTIN_PACKAGES) {
+            eprintln!("warning: Could not write {}: {e}", user_path.display());
+        }
+
+        // Load from file if it now exists, otherwise fall back to built-in.
+        if user_path.exists() {
+            Self::load(&user_path)
+        } else {
+            let index: PackagesIndex = toml::from_str(BUILTIN_PACKAGES)
+                .expect("Built-in packages.toml is invalid — fix it before building");
+            Ok(index)
+        }
     }
 
     /// Look up a package by name.
