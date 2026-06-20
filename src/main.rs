@@ -28,7 +28,7 @@ fn cache_dir() -> PathBuf {
 }
 
 fn packages_dir() -> PathBuf {
-    hut_home().join("packages")
+    cache_dir()
 }
 
 fn lockfile_path() -> PathBuf {
@@ -199,6 +199,9 @@ enum Commands {
         /// Search query
         query: String,
     },
+
+    /// Clean build artifacts (removes target/)
+    Clean,
 }
 
 #[derive(Subcommand)]
@@ -259,6 +262,7 @@ async fn main() {
         Commands::Workspace(sub) => cmd_workspace(sub).await,
         Commands::Completions { shell } => cmd_completions(&shell).await,
         Commands::Search { query } => cmd_search(&query).await,
+        Commands::Clean => cmd_clean().await,
     };
 
     if let Err(e) = result {
@@ -315,7 +319,7 @@ async fn cmd_init(name: Option<String>) -> HutResult<()> {
     // Create a basic .gitignore
     let gitignore = project_dir.join(".gitignore");
     if !gitignore.exists() {
-        std::fs::write(&gitignore, "target/\n.hut/cache/\n*.o\n*.a\n*.so\n")?;
+        std::fs::write(&gitignore, "target/\n*.o\n*.a\n*.so\n")?;
     }
 
     // Initialize a git repository
@@ -855,6 +859,15 @@ async fn cmd_run(
                 .map_err(|e| HutError::Other(format!("Failed to read {}: {e}", src.display())))?;
             combined_source.push_str(&content);
             combined_source.push('\n');
+        }
+
+        // ── Debug / release flags ─────────────────────────────────────
+        if release {
+            tcc.set_options("-DNDEBUG -O2")
+                .map_err(|e| HutError::Other(format!("JIT options failed: {e}")))?;
+        } else {
+            tcc.set_options("-g -O0")
+                .map_err(|e| HutError::Other(format!("JIT options failed: {e}")))?;
         }
 
         tcc.compile(&combined_source)
@@ -1519,6 +1532,28 @@ async fn cmd_search(query: &str) -> HutResult<()> {
         println!();
     }
 
+    Ok(())
+}
+
+/// 23. `hut clean` — remove build artifacts (target/)
+async fn cmd_clean() -> HutResult<()> {
+    let project_root = find_project_root()?;
+    let target_dir = project_root.join("target");
+
+    if !target_dir.exists() {
+        println!("{} No build artifacts to clean.", "info:".dimmed());
+        return Ok(());
+    }
+
+    let size = hut::fetcher::cache_size_human(&target_dir).ok();
+
+    std::fs::remove_dir_all(&target_dir)?;
+    print!("{} Removed target/", "Cleaned".green().bold());
+    if let Some(ref s) = size {
+        println!(" ({s})");
+    } else {
+        println!();
+    }
     Ok(())
 }
 

@@ -236,8 +236,8 @@ fn output_dir(project_root: &Path, release: bool) -> PathBuf {
     project_root.join("target").join(profile)
 }
 
-fn object_dir(project_root: &Path, release: bool) -> PathBuf {
-    output_dir(project_root, release).join("build")
+fn object_dir(project_root: &Path, _release: bool) -> PathBuf {
+    project_root.join("target").join(".build")
 }
 
 fn source_to_object(source: &Path, project_root: &Path, release: bool) -> PathBuf {

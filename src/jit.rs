@@ -22,6 +22,7 @@ type TccNewFn = unsafe extern "C" fn() -> *mut TCCState;
 type TccDeleteFn = unsafe extern "C" fn(*mut TCCState);
 type TccSetOutputTypeFn = unsafe extern "C" fn(*mut TCCState, c_int) -> c_int;
 type TccCompileStringFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int;
+type TccSetOptionsFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int;
 type TccRelocateFn = unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int;
 type TccGetSymbolFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void;
 
@@ -32,6 +33,7 @@ type TccGetSymbolFn = unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut
 pub struct Tcc {
     _lib: libloading::Library,
     delete: TccDeleteFn,
+    set_options: TccSetOptionsFn,
     compile_string: TccCompileStringFn,
     relocate: TccRelocateFn,
     get_symbol: TccGetSymbolFn,
@@ -82,6 +84,11 @@ impl Tcc {
                     lib.get(b"tcc_compile_string").ok()?;
                 std::mem::transmute_copy(&sym)
             };
+            let set_options: TccSetOptionsFn = {
+                let sym: libloading::Symbol<TccSetOptionsFn> =
+                    lib.get(b"tcc_set_options").ok()?;
+                std::mem::transmute_copy(&sym)
+            };
             let relocate: TccRelocateFn = {
                 let sym: libloading::Symbol<TccRelocateFn> = lib.get(b"tcc_relocate").ok()?;
                 std::mem::transmute_copy(&sym)
@@ -106,12 +113,24 @@ impl Tcc {
             Some(Tcc {
                 _lib: lib,
                 delete,
+                set_options,
                 compile_string,
                 relocate,
                 get_symbol,
                 state,
             })
         }
+    }
+
+    /// Set TCC options (e.g. "-g", "-O2", "-DNDEBUG").
+    /// Must be called before compile().
+    pub fn set_options(&mut self, options: &str) -> anyhow::Result<()> {
+        let c_opts = CString::new(options).context("Options contained null bytes")?;
+        let ret = unsafe { (self.set_options)(self.state, c_opts.as_ptr()) };
+        if ret == -1 {
+            bail!("TCC set_options failed: {options}");
+        }
+        Ok(())
     }
 
     /// Compile a C source string.
