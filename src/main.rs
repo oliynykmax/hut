@@ -521,6 +521,8 @@ fn cmd_add(pkgs: &[String], dev: bool, build: bool) -> HutResult<()> {
     };
 
     // Add all packages to hut.toml (validation + config update)
+    let mut errors = Vec::new();
+    let mut added: Vec<String> = Vec::new();
     for name in pkgs {
         let name = name.trim();
         if target_map.contains_key(name) {
@@ -537,6 +539,7 @@ fn cmd_add(pkgs: &[String], dev: bool, build: bool) -> HutResult<()> {
                 "error:".red().bold(),
                 name
             );
+            errors.push(name.to_string());
             continue;
         }
         target_map.insert(name.to_string(), "latest".to_string());
@@ -546,6 +549,18 @@ fn cmd_add(pkgs: &[String], dev: bool, build: bool) -> HutResult<()> {
             name.bold(),
             dep_type.dimmed()
         );
+        added.push(name.to_string());
+    }
+
+    if !errors.is_empty() {
+        return Err(HutError::Other(format!(
+            "packages not found: {}",
+            errors.join(", ")
+        )));
+    }
+
+    if added.is_empty() {
+        return Ok(());
     }
 
     config.save(&config_path)?;

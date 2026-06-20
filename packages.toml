@@ -676,6 +676,12 @@ description = "Single C file zlib replacement (deflate/inflate/zip/PNG)"
 includes = ["."]
 sources = ["miniz.c"]
 
+[packages.zlib]
+repo = "madler/zlib"
+description = "Compression library (deflate/inflate)"
+includes = ["."]
+sources = ["adler32.c", "compress.c", "crc32.c", "deflate.c", "gzclose.c", "gzlib.c", "gzread.c", "gzwrite.c", "infback.c", "inffast.c", "inflate.c", "inftrees.c", "trees.c", "uncompr.c", "zutil.c"]
+
 [packages.mjson]
 repo = "cesanta/mjson"
 description = "C/C++ JSON parser emitter and JSON-RPC single .c/.h"
@@ -929,6 +935,11 @@ includes = ["."]
 sources = ["sqlite3.c"]
 defines = ["SQLITE_THREADSAFE=1"]
 cflags = ["-ldl", "-lpthread", "-lm"]
+
+[packages.stb]
+repo = "nothings/stb"
+description = "All stb single-header libraries (umbrella — prefer stb_image, stb_ds, etc for slim builds)"
+includes = ["."]
 
 [packages.stb_ds]
 repo = "nothings/stb"
