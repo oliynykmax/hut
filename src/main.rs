@@ -88,15 +88,16 @@ enum Commands {
     #[command(alias = "i")]
     Install,
 
-    /// Add a dependency and install it
+    /// Add dependencies and install them
     #[command(alias = "a")]
     Add {
-        /// Package name (must exist in packages.toml)
-        pkg: String,
-        /// Add as a development dependency
+        /// Package names (must exist in packages.toml)
+        #[arg(required = true, num_args = 1..)]
+        pkgs: Vec<String>,
+        /// Add as development dependencies
         #[arg(long)]
         dev: bool,
-        /// Add as a build dependency
+        /// Add as build dependencies
         #[arg(long)]
         build: bool,
     },
@@ -259,7 +260,7 @@ fn main() {
         Commands::Init { name } => cmd_init(name),
         Commands::Create { template } => cmd_create(&template),
         Commands::Install => cmd_install(),
-        Commands::Add { pkg, dev, build } => cmd_add(&pkg, dev, build),
+        Commands::Add { pkgs, dev, build } => cmd_add(&pkgs, dev, build),
         Commands::Remove { pkg } => cmd_remove(&pkg),
         Commands::Update { pkg } => cmd_update(pkg.as_deref()),
         Commands::Outdated => cmd_outdated(),
@@ -499,11 +500,9 @@ fn cmd_install() -> HutResult<()> {
 }
 
 /// 4. `hut add <pkg> [--dev] [--build]`
-fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
+fn cmd_add(pkgs: &[String], dev: bool, build: bool) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
-
-    // Parse package name (just the name, version comes from index)
-    let name = pkg_spec.trim();
+    let index = hut::index::PackagesIndex::load_builtin()?;
 
     let target_map = if dev {
         &mut config.test_dependencies
@@ -513,29 +512,6 @@ fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
         &mut config.dependencies
     };
 
-    if target_map.contains_key(name) {
-        println!(
-            "{} {} is already a dependency. Use `hut update` to change it.",
-            "info:".cyan().bold(),
-            name.bold()
-        );
-        return Ok(());
-    }
-
-    // Verify package exists in index
-    let index = hut::index::PackagesIndex::load_builtin()?;
-    if index.find(name).is_none() {
-        eprintln!(
-            "{} Package '{}' not found in packages.toml.\n       Add it to ~/.config/hut/packages.toml or use a supported package.",
-            "error:".red().bold(),
-            name
-        );
-        return Ok(());
-    }
-
-    target_map.insert(name.to_string(), "latest".to_string());
-    config.save(&config_path)?;
-
     let dep_type = if dev {
         "dev"
     } else if build {
@@ -544,14 +520,37 @@ fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
         ""
     };
 
-    println!(
-        "{} {} {} → hut.toml",
-        "Added".green().bold(),
-        name.bold(),
-        dep_type.dimmed()
-    );
+    // Add all packages to hut.toml (validation + config update)
+    for name in pkgs {
+        let name = name.trim();
+        if target_map.contains_key(name) {
+            println!(
+                "{} {} is already a dependency. Use `hut update` to change it.",
+                "info:".cyan().bold(),
+                name.bold()
+            );
+            continue;
+        }
+        if index.find(name).is_none() {
+            eprintln!(
+                "{} Package '{}' not found in packages.toml.\n       Add it to ~/.config/hut/packages.toml or use a supported package.",
+                "error:".red().bold(),
+                name
+            );
+            continue;
+        }
+        target_map.insert(name.to_string(), "latest".to_string());
+        println!(
+            "{} {} {} → hut.toml",
+            "Added".green().bold(),
+            name.bold(),
+            dep_type.dimmed()
+        );
+    }
 
-    // Now install
+    config.save(&config_path)?;
+
+    // Resolve and install once for all dependencies
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
     let cache = cache_dir();
@@ -572,7 +571,12 @@ fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
     }
     lockfile.save(&lock_path)?;
 
-    println!("{} installed {}", "Done".green().bold(), name.bold());
+    let pkg_list: Vec<_> = pkgs.iter().map(|s| s.trim()).collect();
+    println!(
+        "{} installed {}",
+        "Done".green().bold(),
+        pkg_list.join(", ").bold()
+    );
     Ok(())
 }
 
@@ -2031,8 +2035,8 @@ mod tests {
     fn test_alias_a_for_add() {
         let cli = Cli::try_parse_from(["hut", "a", "user/pkg"]).unwrap();
         match cli.command {
-            Commands::Add { pkg, dev, build } => {
-                assert_eq!(pkg, "user/pkg");
+            Commands::Add { pkgs, dev, build } => {
+                assert_eq!(pkgs[0], "user/pkg");
                 assert!(!dev);
                 assert!(!build);
             }
@@ -2171,8 +2175,8 @@ mod tests {
     fn test_parse_add_basic() {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo"]).unwrap();
         match cli.command {
-            Commands::Add { pkg, dev, build } => {
-                assert_eq!(pkg, "user/libfoo");
+            Commands::Add { pkgs, dev, build } => {
+                assert_eq!(pkgs[0], "user/libfoo");
                 assert!(!dev);
                 assert!(!build);
             }
@@ -2202,7 +2206,7 @@ mod tests {
     fn test_parse_add_with_version() {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo@^1.0"]).unwrap();
         match cli.command {
-            Commands::Add { pkg, .. } => assert_eq!(pkg, "user/libfoo@^1.0"),
+            Commands::Add { pkgs, .. } => assert_eq!(pkgs[0], "user/libfoo@^1.0"),
             _ => panic!("expected Add"),
         }
     }
