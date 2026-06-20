@@ -252,7 +252,6 @@ enum WorkspaceCommand {
 
 // ── Main entry point ───────────────────────────────────────────────────────
 
-
 fn main() {
     let cli = Cli::parse();
 
@@ -260,11 +259,7 @@ fn main() {
         Commands::Init { name } => cmd_init(name),
         Commands::Create { template } => cmd_create(&template),
         Commands::Install => cmd_install(),
-        Commands::Add {
-            pkg,
-            dev,
-            build,
-        } => cmd_add(&pkg, dev, build),
+        Commands::Add { pkg, dev, build } => cmd_add(&pkg, dev, build),
         Commands::Remove { pkg } => cmd_remove(&pkg),
         Commands::Update { pkg } => cmd_update(pkg.as_deref()),
         Commands::Outdated => cmd_outdated(),
@@ -667,8 +662,7 @@ fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
     }
 
     // Re-resolve
-    let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
+    let resolved = hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
 
     for dep in &resolved {
         let locked = LockedPackage {
@@ -821,12 +815,7 @@ fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<()> {
 }
 
 /// 9. `hut run [target] [--release]`
-fn cmd_run(
-    target: Option<String>,
-    args: Vec<String>,
-    release: bool,
-    jit: bool,
-) -> HutResult<()> {
+fn cmd_run(target: Option<String>, args: Vec<String>, release: bool, jit: bool) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let project_root = find_project_root()?;
 
@@ -983,8 +972,7 @@ fn cmd_test() -> HutResult<()> {
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
     let index = hut::index::PackagesIndex::load_builtin()?;
-    let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
+    let resolved = hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
 
     hut::builder::build_project(&config, &resolved, false)?;
 
@@ -1183,30 +1171,74 @@ fn cmd_upgrade() -> HutResult<()> {
             "    {}",
             "git clone git@github.com:oliynykmax/hut.git ~/.hut".dimmed()
         );
-        eprintln!(
-            "    {}",
-            "cd ~/.hut && cargo build --release".dimmed()
-        );
-        eprintln!(
-            "    {}",
-            "cp target/release/hut ~/.local/bin/".dimmed()
-        );
+        eprintln!("    {}", "cd ~/.hut && cargo build --release".dimmed());
+        eprintln!("    {}", "cp target/release/hut ~/.local/bin/".dimmed());
         return Err(HutError::Other(
             "hut source directory not found. Clone to ~/.hut for self-update support.".into(),
         ));
     };
 
-    println!("{} Pulling latest changes...", "→".dimmed());
-    let pull = Command::new("git")
-        .args(["-C", src_dir.to_str().unwrap(), "pull", "--ff-only"])
+    println!("→ Pulling latest changes...");
+
+    // git pull will fail if the working tree is dirty (e.g., Cargo.lock touched by
+    // a previous cargo build). Stash local changes, then reset completely.
+    let stash = Command::new("git")
+        .args([
+            "-C",
+            src_dir.to_str().unwrap(),
+            "stash",
+            "--include-untracked",
+        ])
+        .output();
+
+    let fetch = Command::new("git")
+        .args(["-C", src_dir.to_str().unwrap(), "fetch", "origin"])
         .output()?;
 
-    if !pull.status.success() {
-        let stderr = String::from_utf8_lossy(&pull.stderr);
+    if !fetch.status.success() {
+        let stderr = String::from_utf8_lossy(&fetch.stderr);
         return Err(HutError::Other(format!(
-            "git pull failed: {}",
+            "git fetch failed: {}",
             stderr.trim()
         )));
+    }
+
+    let reset = Command::new("git")
+        .args([
+            "-C",
+            src_dir.to_str().unwrap(),
+            "reset",
+            "--hard",
+            "origin/main",
+        ])
+        .output()?;
+
+    if !reset.status.success() {
+        let stderr = String::from_utf8_lossy(&reset.stderr);
+        return Err(HutError::Other(format!(
+            "git reset failed: {}",
+            stderr.trim()
+        )));
+    }
+
+    // Clean any leftover untracked files (build artifacts outside target/)
+    let _ = Command::new("git")
+        .args(["-C", src_dir.to_str().unwrap(), "clean", "-fd"])
+        .output();
+
+    // If we stashed, drop the stash (it's just build artifacts, not user edits)
+    if let Ok(stash) = stash {
+        if stash.status.success() {
+            let _ = Command::new("git")
+                .args([
+                    "-C",
+                    src_dir.to_str().unwrap(),
+                    "stash",
+                    "drop",
+                    "stash@{0}",
+                ])
+                .output();
+        }
     }
 
     let new_version = get_hut_version(&src_dir)?;
@@ -1253,9 +1285,9 @@ fn cmd_upgrade() -> HutResult<()> {
 fn find_hut_source() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
     let candidates = [
-        home.join(".hut"),             // default git clone location
+        home.join(".hut"), // default git clone location
         PathBuf::from("/usr/local/lib/hut"),
-        home.join("hut"),              // cloned as ~/hut
+        home.join("hut"), // cloned as ~/hut
         std::env::current_dir().ok()?,
     ];
 
@@ -1295,12 +1327,9 @@ fn cmd_patch(pkg: &str) -> HutResult<()> {
         ))
     })?;
 
-    let cache = cache_dir();
-    let (_pkg, pkg_dir) = hut::fetcher::fetch_package_metadata(
-        pkg,
-        &locked.resolved,
-        &locked.version,
-    )?;
+    let _cache = cache_dir();
+    let (_pkg, pkg_dir) =
+        hut::fetcher::fetch_package_metadata(pkg, &locked.resolved, &locked.version)?;
 
     println!("{}", "Patch mode:".bold().underline());
     println!();
@@ -1607,11 +1636,7 @@ fn cmd_search(query: &str) -> HutResult<()> {
     println!();
 
     for (name, entry) in results {
-        println!(
-            "  {} — {}",
-            name.bold().cyan(),
-            entry.description.dimmed()
-        );
+        println!("  {} — {}", name.bold().cyan(), entry.description.dimmed());
         println!(
             "    repo: {}   includes: [{}]",
             entry.repo.dimmed(),
@@ -1828,6 +1853,7 @@ fn cmd_clean() -> HutResult<()> {
 
 // ── Helper functions ───────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 /// Parse a dependency spec like "user/lib@^1.0" → ("user/lib", Some("^1.0"))
 fn parse_dep_spec(spec: &str) -> (String, Option<String>) {
     if let Some(at_pos) = spec.find('@') {
@@ -1996,7 +2022,7 @@ mod tests {
     fn test_alias_i_for_install() {
         let cli = Cli::try_parse_from(["hut", "i"]).unwrap();
         match cli.command {
-            Commands::Install => {},
+            Commands::Install => {}
             _ => panic!("expected Install alias 'i'"),
         }
     }
@@ -2005,9 +2031,7 @@ mod tests {
     fn test_alias_a_for_add() {
         let cli = Cli::try_parse_from(["hut", "a", "user/pkg"]).unwrap();
         match cli.command {
-            Commands::Add {
-                pkg, dev, build
-            } => {
+            Commands::Add { pkg, dev, build } => {
                 assert_eq!(pkg, "user/pkg");
                 assert!(!dev);
                 assert!(!build);
@@ -2147,9 +2171,7 @@ mod tests {
     fn test_parse_add_basic() {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo"]).unwrap();
         match cli.command {
-            Commands::Add {
-                pkg, dev, build
-            } => {
+            Commands::Add { pkg, dev, build } => {
                 assert_eq!(pkg, "user/libfoo");
                 assert!(!dev);
                 assert!(!build);

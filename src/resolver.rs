@@ -63,11 +63,7 @@ impl<'a> ResolveContext<'a> {
         }
     }
 
-    fn resolve_one(
-        &mut self,
-        name: &str,
-        queue: &mut Vec<(String, String)>,
-    ) -> HutResult<()> {
+    fn resolve_one(&mut self, name: &str, queue: &mut Vec<(String, String)>) -> HutResult<()> {
         let entry = self
             .index
             .find(name)
@@ -83,8 +79,7 @@ impl<'a> ResolveContext<'a> {
         };
 
         // Fetch package source (clone from GitHub).
-        let pkg_path =
-            crate::fetcher::fetch_package_source(name, &repo_url, &version)?;
+        let pkg_path = crate::fetcher::fetch_package_source(name, &repo_url, &version)?;
 
         self.resolved_names.insert(name.to_string());
 

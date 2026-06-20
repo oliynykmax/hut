@@ -30,9 +30,12 @@ pub fn http_download(url: &str, dest: &Path) -> HutResult<()> {
     let status = Command::new("curl")
         .args([
             "-sSfL",
-            "--connect-timeout", "30",
-            "--max-time", "300",
-            "-o", &dest.display().to_string(),
+            "--connect-timeout",
+            "30",
+            "--max-time",
+            "300",
+            "-o",
+            &dest.display().to_string(),
             url,
         ])
         .stdout(std::process::Stdio::null())

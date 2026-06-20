@@ -45,8 +45,7 @@ impl Tcc {
         })?;
 
         unsafe {
-            let new_fn: unsafe extern "C" fn() -> *mut TCCState =
-                *lib.get(b"tcc_new").ok()?;
+            let new_fn: unsafe extern "C" fn() -> *mut TCCState = *lib.get(b"tcc_new").ok()?;
             let state = new_fn();
             if state.is_null() {
                 return None;
@@ -65,8 +64,7 @@ impl Tcc {
                 set_output_type_fn(state, 0);
             }
 
-            let delete_fn: unsafe extern "C" fn(*mut TCCState) =
-                *lib.get(b"tcc_delete").ok()?;
+            let delete_fn: unsafe extern "C" fn(*mut TCCState) = *lib.get(b"tcc_delete").ok()?;
             let compile_string_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int =
                 *lib.get(b"tcc_compile_string").ok()?;
             let relocate_fn: unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int =
@@ -139,7 +137,9 @@ impl Tcc {
 
 impl Drop for Tcc {
     fn drop(&mut self) {
-        unsafe { (self.delete_fn)(self.state); }
+        unsafe {
+            (self.delete_fn)(self.state);
+        }
     }
 }
 

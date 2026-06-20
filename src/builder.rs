@@ -294,77 +294,78 @@ fn build(
     let compile_results: Vec<HutResult<PathBuf>> = stale_sources
         .par_iter()
         .map(|source| {
-                // Per-file compiler selection
-                let is_cpp_file = if is_c_file(source) {
-                    false
-                } else if is_cpp_file(source) {
-                    true
-                } else {
-                    is_cpp
-                };
-                let compiler_exe = if is_cpp_file {
-                    compiler.cxx.clone()
-                } else {
-                    compiler.cc.clone()
-                };
+            // Per-file compiler selection
+            let is_cpp_file = if is_c_file(source) {
+                false
+            } else if is_cpp_file(source) {
+                true
+            } else {
+                is_cpp
+            };
+            let compiler_exe = if is_cpp_file {
+                compiler.cxx.clone()
+            } else {
+                compiler.cc.clone()
+            };
 
-                let obj_path = source_to_object(source, project_root, release);
+            let obj_path = source_to_object(source, project_root, release);
 
-                // Build per-file flags
-                let file_flags = flags::collect_flags(
-                    config, deps, target_name, &all_includes, source, release,
-                );
+            // Build per-file flags
+            let file_flags =
+                flags::collect_flags(config, deps, target_name, &all_includes, source, release);
 
-                if let Some(parent) = obj_path.parent() {
-                    std::fs::create_dir_all(parent).ok();
+            if let Some(parent) = obj_path.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+
+            let relative = source.strip_prefix(project_root).unwrap_or(source);
+
+            println!(
+                "{} {}",
+                "   Compiling".bold().green(),
+                relative.display().to_string().dimmed()
+            );
+
+            let mut cmd = Command::new(&compiler_exe);
+            cmd.arg("-c");
+            cmd.arg(source);
+            cmd.arg("-o");
+            cmd.arg(&obj_path);
+
+            if file_flags.total_len() > 32 * 1024 {
+                let rsp_path = obj_path.with_extension("rsp");
+                let rsp_content = file_flags
+                    .cflags
+                    .iter()
+                    .map(|f| escape_rsp_arg(f))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                std::fs::write(&rsp_path, &rsp_content).ok();
+                cmd.arg(format!("@{}", rsp_path.display()));
+            } else {
+                for flag in &file_flags.cflags {
+                    cmd.arg(flag);
                 }
+            }
 
-                let relative = source.strip_prefix(project_root).unwrap_or(source);
+            let output = cmd
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .output()
+                .map_err(|e| {
+                    HutError::Build(format!("Failed to compile {}: {e}", source.display()))
+                })?;
 
-                println!(
-                    "{} {}",
-                    "   Compiling".bold().green(),
-                    relative.display().to_string().dimmed()
-                );
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(HutError::Build(format!(
+                    "Compilation of {} failed:\n{stderr}",
+                    source.display()
+                )));
+            }
 
-                let mut cmd = Command::new(&compiler_exe);
-                cmd.arg("-c");
-                cmd.arg(source);
-                cmd.arg("-o");
-                cmd.arg(&obj_path);
-
-                if file_flags.total_len() > 32 * 1024 {
-                    let rsp_path = obj_path.with_extension("rsp");
-                    let rsp_content = file_flags.cflags.iter()
-                        .map(|f| escape_rsp_arg(f))
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    std::fs::write(&rsp_path, &rsp_content).ok();
-                    cmd.arg(format!("@{}", rsp_path.display()));
-                } else {
-                    for flag in &file_flags.cflags {
-                        cmd.arg(flag);
-                    }
-                }
-
-                let output = cmd
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped())
-                    .output()
-                    .map_err(|e| {
-                        HutError::Build(format!("Failed to compile {}: {e}", source.display()))
-                    })?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    return Err(HutError::Build(format!(
-                        "Compilation of {} failed:\n{stderr}",
-                        source.display()
-                    )));
-                }
-
-                Ok(obj_path)
-            })
+            Ok(obj_path)
+        })
         .collect();
 
     // Collect results — abort on first error

@@ -117,7 +117,9 @@ where
             Err(e) => {
                 last_err = Some(e);
                 if attempt < MAX_RETRIES {
-                    let delay = std::time::Duration::from_millis(BASE_RETRY_DELAY_MS * 2u64.pow(attempt - 1));
+                    let delay = std::time::Duration::from_millis(
+                        BASE_RETRY_DELAY_MS * 2u64.pow(attempt - 1),
+                    );
                     eprintln!(
                         "    {} attempt {attempt}/{MAX_RETRIES} for {description} (retrying in {}s)",
                         "⚠".yellow(),
@@ -207,6 +209,7 @@ fn download_and_extract_tarball(url: &str, dest: &Path) -> HutResult<u64> {
     Ok(total)
 }
 
+#[allow(dead_code)]
 fn download_github_release(repo_url: &str, version: &str, dest: &Path) -> HutResult<()> {
     let clean = repo_url.trim_end_matches('/').trim_end_matches(".git");
     let re = regex::Regex::new(r"github\.com[:/]([^/]+)/([^/]+)")
@@ -222,9 +225,13 @@ fn download_github_release(repo_url: &str, version: &str, dest: &Path) -> HutRes
     let release_bytes = crate::http::http_get(&release_url)?;
 
     #[derive(serde::Deserialize)]
-    struct GitHubAsset { browser_download_url: String }
+    struct GitHubAsset {
+        browser_download_url: String,
+    }
     #[derive(serde::Deserialize)]
-    struct GitHubRelease { assets: Vec<GitHubAsset> }
+    struct GitHubRelease {
+        assets: Vec<GitHubAsset>,
+    }
 
     let release: GitHubRelease = serde_json::from_slice(&release_bytes)?;
     let asset_url = release
@@ -241,11 +248,7 @@ fn download_github_release(repo_url: &str, version: &str, dest: &Path) -> HutRes
 
 /// Clone a GitHub repo at a specific version and return the path.
 /// Does NOT require a hut.toml — this is for packages defined in packages.toml.
-pub fn fetch_package_source(
-    name: &str,
-    repo_url: &str,
-    version: &str,
-) -> HutResult<PathBuf> {
+pub fn fetch_package_source(name: &str, repo_url: &str, version: &str) -> HutResult<PathBuf> {
     let cache_dir = default_cache_dir();
     let pkg_dir = package_cache_dir(&cache_dir, name, version);
     let meta_path = cache_meta_path(&cache_dir, name, version);
@@ -323,7 +326,10 @@ pub fn fetch_package_source(
     };
     std::fs::write(&meta_path, serde_json::to_string_pretty(&meta)?)?;
 
-    status("Fetched", &format!("{}@{} (sha256:{})", name, version, &integrity[..12]));
+    status(
+        "Fetched",
+        &format!("{}@{} (sha256:{})", name, version, &integrity[..12]),
+    );
     Ok(pkg_dir)
 }
 
@@ -431,7 +437,10 @@ pub fn fetch_package_metadata(
     };
     std::fs::write(&meta_path, serde_json::to_string_pretty(&meta)?)?;
 
-    status("Fetched", &format!("{}@{} (sha256:{})", name, version, &integrity[..12]));
+    status(
+        "Fetched",
+        &format!("{}@{} (sha256:{})", name, version, &integrity[..12]),
+    );
     Ok((pkg, pkg_dir))
 }
 
@@ -463,13 +472,12 @@ fn cfg_to_package(cfg: &HutConfig, repo_url: &str) -> Package {
 
 /// Install all dependencies — they are already resolved and fetched to cache
 /// by the resolver. This just validates they exist in cache.
-pub fn install_dependencies(
-    config: &HutConfig,
-    cache_dir: &Path,
-) -> HutResult<()> {
+pub fn install_dependencies(config: &HutConfig, cache_dir: &Path) -> HutResult<()> {
     let mut tasks: Vec<(&str, &Path)> = Vec::new();
 
-    for name in config.dependencies.keys()
+    for name in config
+        .dependencies
+        .keys()
         .chain(config.build_dependencies.keys())
         .chain(config.test_dependencies.keys())
     {
