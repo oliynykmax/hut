@@ -1,10 +1,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 
 use colored::Colorize;
-use tokio::sync::Semaphore;
 use walkdir::WalkDir;
 
 use crate::config::HutConfig;
@@ -473,54 +471,47 @@ async fn build_hut(
         );
     }
 
-    // Compile stale source files in parallel
-    let parallel_jobs = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4);
-    let semaphore = Arc::new(Semaphore::new(parallel_jobs));
-    let mut compile_handles = Vec::new();
+    // Compile stale source files in parallel using rayon
+    use rayon::prelude::*;
 
-    for source in &stale_sources {
-        // Per-file compiler selection: .c → always cc, .cpp → always cxx,
-        // ambiguous extensions (.h, etc.) → fall back to project language.
-        let is_cpp_file = if is_c_file(source) {
-            false
-        } else if is_cpp_file(source) {
-            true
-        } else {
-            is_cpp
-        };
-        let compiler_exe = if is_cpp_file {
-            compiler.cxx.clone()
-        } else {
-            compiler.cc.clone()
-        };
+    let compile_results: Vec<HutResult<PathBuf>> = stale_sources
+        .par_iter()
+        .map(|source| {
+            // Per-file compiler selection: .c → always cc, .cpp → always cxx,
+            // ambiguous extensions (.h, etc.) → fall back to project language.
+            let is_cpp_file = if is_c_file(source) {
+                false
+            } else if is_cpp_file(source) {
+                true
+            } else {
+                is_cpp
+            };
+            let compiler_exe = if is_cpp_file {
+                compiler.cxx.clone()
+            } else {
+                compiler.cc.clone()
+            };
 
-        let obj_path = source_to_object(source, project_root, release);
-        let source_path = source.clone();
-        let sem = Arc::clone(&semaphore);
+            let obj_path = source_to_object(source, project_root, release);
 
-        // Build per-file flags (per-target flags match against source file)
-        let file_flags = flags::collect_flags(
-            config,
-            deps,
-            target_name,
-            &all_includes,
-            &source_path,
-            release,
-        );
-
-        let handle = tokio::spawn(async move {
-            let _permit = sem.acquire().await.unwrap();
+            // Build per-file flags (per-target flags match against source file)
+            let file_flags = flags::collect_flags(
+                config,
+                deps,
+                target_name,
+                &all_includes,
+                source,
+                release,
+            );
 
             // Ensure parent directory exists
             if let Some(parent) = obj_path.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
 
-            let relative = source_path
-                .strip_prefix(&std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-                .unwrap_or(&source_path);
+            let relative = source
+                .strip_prefix(project_root)
+                .unwrap_or(source);
 
             println!(
                 "{} {}",
@@ -530,7 +521,7 @@ async fn build_hut(
 
             let mut cmd = Command::new(&compiler_exe);
             cmd.arg("-c");
-            cmd.arg(&source_path);
+            cmd.arg(source);
             cmd.arg("-o");
             cmd.arg(&obj_path);
 
@@ -556,35 +547,28 @@ async fn build_hut(
                 .stderr(std::process::Stdio::piped())
                 .output()
                 .map_err(|e| {
-                    HutError::Build(format!("Failed to compile {}: {e}", source_path.display()))
+                    HutError::Build(format!("Failed to compile {}: {e}", source.display()))
                 })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(HutError::Build(format!(
                     "Compilation of {} failed:\n{stderr}",
-                    source_path.display()
+                    source.display()
                 )));
             }
 
-            Ok::<PathBuf, HutError>(obj_path)
-        });
+            Ok(obj_path)
+        })
+        .collect();
 
-        compile_handles.push(handle);
-    }
-
-    // Await all compilations
+    // Collect results — abort on first error
     let fresh_count = fresh_files.len();
     let mut object_files: Vec<PathBuf> = fresh_files; // pre-load cached .o files
-    for handle in compile_handles {
-        match handle.await {
-            Ok(Ok(obj)) => object_files.push(obj),
-            Ok(Err(e)) => return Err(e),
-            Err(join_err) => {
-                return Err(HutError::Build(format!(
-                    "Compilation task panicked: {join_err}"
-                )));
-            }
+    for result in compile_results {
+        match result {
+            Ok(obj) => object_files.push(obj),
+            Err(e) => return Err(e),
         }
     }
 

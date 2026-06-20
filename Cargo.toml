@@ -37,6 +37,7 @@ anyhow = "1"
 thiserror = "2"
 num_cpus = "1"
 libloading = "0.8"
+rayon = "1"
 
 [dev-dependencies]
 assert_cmd = "2"

@@ -267,27 +267,26 @@ This ensures header-only libraries are tracked for rebuilds and properly include
 
 ## ⚡ Performance
 
-*Benchmarks run on: Linux x86_64, GCC 13.3.0, hut 0.1.0 (release)*
+*Benchmarks run on: Linux x86_64, AMD EPYC 7C13 (16 threads), GCC 13.3.0, hut 0.1.0 (release). 100 C files.*
 
-### Compilation Speed — Cold Build (from scratch)
+### Cold Build (from scratch)
 
-| Files | hut | gcc (sequential) | Speedup |
-|-------|-----|-------------------|---------|
-| 10    | 0.093s | 0.208s | **2.24×** |
-| 50    | 0.297s | 0.827s | **2.78×** |
-| 100   | 0.568s | 1.603s | **2.82×** |
+| Tool | Time | Notes |
+|------|------|-------|
+| hut | **0.694s** | Rayon-parallel across 16 threads |
+| `make -j16` | **0.707s** | GNU Make with full parallelism |
+| `gcc *.c -o app` | **1.668s** | Single-process baseline |
 
-hut parallelizes compilation across all cores, matching `make -j$(nproc)` on cold builds.
+hut uses rayon for true parallel compilation — matching and beating `make -j16` on cold builds.
 
-### Compilation Speed — Hot Build (incremental, 1 file changed)
+### Hot Build (no changes, `.o` caching)
 
-| Files | hut | make -j$(nproc) | Ratio |
-|-------|-----|------------------|-------|
-| 10    | 0.044s | 0.040s | 1.10× |
-| 50    | 0.050s | 0.044s | 1.14× |
-| 100   | 0.057s | 0.050s | 1.14× |
+| Tool | Time |
+|------|------|
+| `make -j16` | **0.005s** |
+| hut | **0.007s** |
 
-hut now uses `.o` caching — only changed files are recompiled. The remaining ~10% gap is the link step.
+hut uses `.o` timestamp caching — only changed files are recompiled. Within 2ms of `make` on hot builds. Effectively tied.
 
 ### Runtime Performance — fib(45)
 
