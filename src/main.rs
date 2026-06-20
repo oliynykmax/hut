@@ -1397,7 +1397,6 @@ async fn cmd_info() -> HutResult<()> {
 
     // Build config
     println!("{}", "Build config:".bold());
-    println!("  system: {}", config.build.system);
     println!("  c_standard: {}", config.build.c_standard);
     if let Some(ref cpp) = config.build.cpp_standard {
         println!("  cpp_standard: {}", cpp);

@@ -151,7 +151,6 @@ cmake-utils = "~0.5"
 catch2 = "*"
 
 [build]
-system = "cmake"
 c_standard = "c17"
 opt_level = "3"
 debug = false
@@ -189,7 +188,6 @@ test = "make test"
         );
         assert_eq!(config.test_dependencies.get("catch2").unwrap(), "*");
 
-        assert_eq!(config.build.system, "cmake");
         assert_eq!(config.build.c_standard, "c17");
         assert_eq!(config.build.opt_level, "3");
         assert!(!config.build.debug);
@@ -320,7 +318,6 @@ version = "1.0"
 "#,
         )
         .unwrap();
-        assert_eq!(config.build.system, "auto");
         assert_eq!(config.build.c_standard, "c17");
         assert_eq!(config.build.opt_level, "2");
         assert!(config.build.debug);

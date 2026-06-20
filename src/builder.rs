@@ -132,10 +132,6 @@ pub fn is_source_file(path: &Path) -> bool {
     is_c_file(path) || is_cpp_file(path)
 }
 
-// ---------------------------------------------------------------------------
-// Collect source files
-// ---------------------------------------------------------------------------
-
 /// Collect all .c / .cpp files from the configured source directories (or default "src/")
 pub fn collect_sources(config: &HutConfig, project_root: &Path) -> HutResult<Vec<PathBuf>> {
     let source_dirs: Vec<&str> = vec!["src"];
@@ -181,51 +177,6 @@ pub fn collect_sources(config: &HutConfig, project_root: &Path) -> HutResult<Vec
 }
 
 // ---------------------------------------------------------------------------
-// Build system auto-detection
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BuildSystem {
-    Cmake,
-    Make,
-    Hut,
-}
-
-fn detect_build_system(config: &HutConfig, project_root: &Path) -> BuildSystem {
-    let system = config.build.system.as_str();
-
-    if system == "cmake" {
-        return BuildSystem::Cmake;
-    }
-    if system == "make" {
-        return BuildSystem::Make;
-    }
-    if system == "hut" {
-        return BuildSystem::Hut;
-    }
-
-    // "auto" — sniff filesystem
-    if project_root.join("CMakeLists.txt").exists() {
-        return BuildSystem::Cmake;
-    }
-    if project_root.join("Makefile").exists()
-        || project_root.join("makefile").exists()
-        || project_root.join("GNUmakefile").exists()
-    {
-        return BuildSystem::Make;
-    }
-
-    BuildSystem::Hut
-}
-
-// ---------------------------------------------------------------------------
-// Compile / link flags — delegated to the flags module
-// ---------------------------------------------------------------------------
-
-// (build_compiler_flags and build_linker_flags have been replaced by
-//  flags::collect_flags() — see src/flags.rs)
-
-// ---------------------------------------------------------------------------
 // Output paths
 // ---------------------------------------------------------------------------
 
@@ -263,144 +214,11 @@ fn is_object_fresh(source: &Path, object: &Path) -> bool {
     obj_modified >= src_modified
 }
 
-/// Number of parallel jobs to use (based on available CPUs)
-fn parallel_jobs() -> usize {
-    std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
-}
-
 // ---------------------------------------------------------------------------
-// CMake build
+// Hut build (the only build system)
 // ---------------------------------------------------------------------------
 
-async fn build_cmake(config: &HutConfig, project_root: &Path, release: bool) -> HutResult<()> {
-    let out_dir = output_dir(project_root, release);
-    std::fs::create_dir_all(&out_dir)?;
-
-    let build_type = if release { "Release" } else { "Debug" };
-
-    println!(
-        "{} cmake project {}",
-        "   Running".bold().cyan(),
-        config.package.name.bold()
-    );
-
-    // Configure
-    let configure_status = Command::new("cmake")
-        .arg(format!("-DCMAKE_BUILD_TYPE={build_type}"))
-        .arg(format!("-DCMAKE_INSTALL_PREFIX={}", out_dir.display()))
-        .arg("-B")
-        .arg(&out_dir)
-        .arg("-S")
-        .arg(project_root)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .map_err(|e| HutError::Build(format!("Failed to run cmake configure: {e}")))?;
-
-    if !configure_status.status.success() {
-        let stderr = String::from_utf8_lossy(&configure_status.stderr);
-        return Err(HutError::Build(format!(
-            "CMake configure failed:\n{stderr}"
-        )));
-    }
-
-    // Build
-    let build_status = Command::new("cmake")
-        .arg("--build")
-        .arg(&out_dir)
-        .arg("--config")
-        .arg(build_type)
-        .arg("--parallel")
-        .arg(parallel_jobs().to_string())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .map_err(|e| HutError::Build(format!("Failed to run cmake build: {e}")))?;
-
-    if !build_status.status.success() {
-        let stderr = String::from_utf8_lossy(&build_status.stderr);
-        return Err(HutError::Build(format!("CMake build failed:\n{stderr}")));
-    }
-
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Make build
-// ---------------------------------------------------------------------------
-
-async fn build_make(
-    config: &HutConfig,
-    project_root: &Path,
-    release: bool,
-    compiler: &Compiler,
-    include_paths: &[PathBuf],
-) -> HutResult<()> {
-    println!(
-        "{} make project {}",
-        "   Running".bold().cyan(),
-        config.package.name.bold()
-    );
-
-    let mut cmd = Command::new("make");
-    cmd.current_dir(project_root);
-
-    // Pass CC/CXX through environment
-    cmd.env("CC", &compiler.cc);
-    cmd.env("CXX", &compiler.cxx);
-
-    if release {
-        cmd.arg(format!(
-            "CFLAGS=-O{} -DNDEBUG",
-            if config.build.opt_level.is_empty() {
-                "2"
-            } else {
-                &config.build.opt_level
-            }
-        ));
-        cmd.arg(format!(
-            "CXXFLAGS=-O{} -DNDEBUG",
-            if config.build.opt_level.is_empty() {
-                "2"
-            } else {
-                &config.build.opt_level
-            }
-        ));
-    } else {
-        cmd.arg("CFLAGS=-O0 -g");
-        cmd.arg("CXXFLAGS=-O0 -g");
-    }
-
-    // Pass include paths
-    if !include_paths.is_empty() {
-        let inc_flags: Vec<String> = include_paths
-            .iter()
-            .map(|p| format!("-I{}", p.display()))
-            .collect();
-        cmd.arg(format!("CPPFLAGS={}", inc_flags.join(" ")));
-    }
-
-    let status = cmd
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .map_err(|e| HutError::Build(format!("Failed to run make: {e}")))?;
-
-    if !status.status.success() {
-        let stderr = String::from_utf8_lossy(&status.stderr);
-        return Err(HutError::Build(format!("Make failed:\n{stderr}")));
-    }
-
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Hut direct build
-// ---------------------------------------------------------------------------
-
-async fn build_hut(
+fn build(
     config: &HutConfig,
     deps: &[ResolvedDependency],
     project_root: &Path,
@@ -437,7 +255,6 @@ async fn build_hut(
     let target_name = &config.package.name;
 
     // Collect the global set of flags (used for linking and as a baseline).
-    // Per-file compilation may override some flags.
     let all_flags = flags::collect_flags(
         config,
         deps,
@@ -494,7 +311,7 @@ async fn build_hut(
 
             let obj_path = source_to_object(source, project_root, release);
 
-            // Build per-file flags (per-target flags match against source file)
+            // Build per-file flags
             let file_flags = flags::collect_flags(
                 config,
                 deps,
@@ -509,9 +326,7 @@ async fn build_hut(
                 std::fs::create_dir_all(parent).ok();
             }
 
-            let relative = source
-                .strip_prefix(project_root)
-                .unwrap_or(source);
+            let relative = source.strip_prefix(project_root).unwrap_or(source);
 
             println!(
                 "{} {}",
@@ -601,8 +416,6 @@ async fn build_hut(
     );
 
     {
-        // TODO: detect library type from config
-        // Link executable
         let linker_exe = if sources.iter().any(|s| is_cpp_file(s)) {
             &compiler.cxx
         } else {
@@ -676,9 +489,6 @@ fn escape_rsp_arg(arg: &str) -> String {
 // ---------------------------------------------------------------------------
 
 /// Build the project at the given root directory.
-///
-/// Automatically detects the build system (CMake, Make, or hut direct mode),
-/// compiles all sources in parallel, and links the final output.
 pub async fn build_project(
     config: &HutConfig,
     deps: &[ResolvedDependency],
@@ -687,10 +497,8 @@ pub async fn build_project(
     let project_root = std::env::current_dir()
         .map_err(|e| HutError::Build(format!("Cannot get current directory: {e}")))?;
 
-    // Detect compiler upfront (needed for all build systems)
+    // Detect compiler
     let compiler = detect_compiler(&config.build.compiler)?;
-
-    let build_system = detect_build_system(config, &project_root);
 
     let profile_color = if release {
         colored::Color::Yellow
@@ -708,18 +516,7 @@ pub async fn build_project(
         profile = profile_name.color(profile_color).bold()
     );
 
-    match build_system {
-        BuildSystem::Cmake => {
-            build_cmake(config, &project_root, release).await?;
-        }
-        BuildSystem::Make => {
-            let include_paths = include::resolve_includes(deps, &project_root);
-            build_make(config, &project_root, release, &compiler, &include_paths).await?;
-        }
-        BuildSystem::Hut => {
-            build_hut(config, deps, &project_root, release, &compiler).await?;
-        }
-    }
+    build(config, deps, &project_root, release, &compiler)?;
 
     let out_dir = output_dir(&project_root, release);
     let binary = out_dir.join(&config.package.name);
@@ -1026,66 +823,6 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // detect_build_system
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_detect_build_system_explicit_cmake() {
-        let mut config = make_test_config("proj");
-        config.build.system = "cmake".into();
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Cmake);
-    }
-
-    #[test]
-    fn test_detect_build_system_explicit_make() {
-        let mut config = make_test_config("proj");
-        config.build.system = "make".into();
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
-    }
-
-    #[test]
-    fn test_detect_build_system_explicit_hut() {
-        let mut config = make_test_config("proj");
-        config.build.system = "hut".into();
-        let tmp = TempDir::new().unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Hut);
-    }
-
-    #[test]
-    fn test_detect_build_system_auto_cmake() {
-        let config = make_test_config("proj");
-        let tmp = TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("CMakeLists.txt"), "").unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Cmake);
-    }
-
-    #[test]
-    fn test_detect_build_system_auto_makefile() {
-        let config = make_test_config("proj");
-        let tmp = TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("Makefile"), "").unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
-    }
-
-    #[test]
-    fn test_detect_build_system_auto_gnumakefile() {
-        let config = make_test_config("proj");
-        let tmp = TempDir::new().unwrap();
-        std::fs::write(tmp.path().join("GNUmakefile"), "").unwrap();
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
-    }
-
-    #[test]
-    fn test_detect_build_system_auto_defaults_to_hut() {
-        let config = make_test_config("proj");
-        let tmp = TempDir::new().unwrap();
-        // No CMakeLists.txt, no Makefile → defaults to Hut
-        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Hut);
-    }
-
-    // -----------------------------------------------------------------------
     // detect_ar
     // -----------------------------------------------------------------------
 
@@ -1098,36 +835,5 @@ mod tests {
             ar == "ar" || ar == "llvm-ar",
             "Expected 'ar' or 'llvm-ar', got '{ar}'"
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // parallel_jobs
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_parallel_jobs_returns_reasonable_number() {
-        let jobs = parallel_jobs();
-        assert!(jobs >= 1, "expected at least 1 parallel job, got {jobs}");
-    }
-
-    // -----------------------------------------------------------------------
-    // BuildSystem enum
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_build_system_eq() {
-        assert_eq!(BuildSystem::Hut, BuildSystem::Hut);
-        assert_ne!(BuildSystem::Hut, BuildSystem::Cmake);
-        assert_ne!(BuildSystem::Cmake, BuildSystem::Make);
-    }
-
-    #[test]
-    fn test_build_system_debug() {
-        let s = format!("{:?}", BuildSystem::Hut);
-        assert_eq!(s, "Hut");
-        let s = format!("{:?}", BuildSystem::Cmake);
-        assert_eq!(s, "Cmake");
-        let s = format!("{:?}", BuildSystem::Make);
-        assert_eq!(s, "Make");
     }
 }

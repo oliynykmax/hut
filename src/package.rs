@@ -68,10 +68,6 @@ pub fn default_includes() -> Vec<String> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildConfig {
-    /// Build system: "auto", "cmake", "make", "hut"
-    #[serde(default = "default_build_system")]
-    pub system: String,
-
     /// C standard: "c11", "c17", "c23", etc.
     #[serde(default = "default_c_standard")]
     pub c_standard: String,
@@ -132,9 +128,6 @@ pub struct BuildConfig {
     pub pic: bool,
 }
 
-fn default_build_system() -> String {
-    "auto".to_string()
-}
 fn default_c_standard() -> String {
     "c17".to_string()
 }
@@ -155,7 +148,6 @@ fn default_compiler() -> String {
 impl Default for BuildConfig {
     fn default() -> Self {
         BuildConfig {
-            system: default_build_system(),
             c_standard: default_c_standard(),
             cpp_standard: None,
             opt_level: default_opt_level(),
@@ -301,7 +293,6 @@ mod tests {
     #[test]
     fn test_buildconfig_default() {
         let bc = BuildConfig::default();
-        assert_eq!(bc.system, "auto");
         assert_eq!(bc.c_standard, "c17");
         assert_eq!(bc.cpp_standard, None);
         assert_eq!(bc.opt_level, "2");
@@ -322,7 +313,6 @@ mod tests {
     #[test]
     fn test_default_build() {
         let bc = Package::default_build();
-        assert_eq!(bc.system, "auto");
         assert_eq!(bc.opt_level, "2");
         assert!(bc.debug);
     }
@@ -432,7 +422,6 @@ dep1 = ">=1.0"
 dep2 = "^2.3"
 
 [build]
-system = "hut"
 opt_level = "3"
 lto = true
 pic = true
@@ -471,7 +460,6 @@ framework = "unity"
         assert_eq!(pkg.dependencies.get("dep1").unwrap(), ">=1.0");
         assert_eq!(pkg.dependencies.get("dep2").unwrap(), "^2.3");
 
-        assert_eq!(pkg.build.system, "hut");
         assert_eq!(pkg.build.opt_level, "3");
         assert!(pkg.build.lto);
         assert!(pkg.build.pic);
@@ -568,7 +556,6 @@ framework = "unity"
     #[test]
     fn test_buildconfig_non_default() {
         let bc = BuildConfig {
-            system: "cmake".into(),
             c_standard: "c11".into(),
             cpp_standard: Some("c++20".into()),
             opt_level: "s".into(),
@@ -590,7 +577,6 @@ framework = "unity"
             pic: true,
         };
 
-        assert_eq!(bc.system, "cmake");
         assert_eq!(bc.c_standard, "c11");
         assert_eq!(bc.cpp_standard, Some("c++20".into()));
         assert_eq!(bc.opt_level, "s");
