@@ -176,7 +176,7 @@ enum Commands {
     #[command(subcommand)]
     Pm(PmCommand),
 
-    /// Show self-update instructions
+    /// Self-update hut to the latest version
     Upgrade,
 
     /// Extract a dependency's source for local patching
@@ -1172,26 +1172,106 @@ async fn cmd_pm(sub: PmCommand) -> HutResult<()> {
 
 /// 16. `hut upgrade`
 async fn cmd_upgrade() -> HutResult<()> {
-    println!("{}", "Hut self-upgrade:".bold().underline());
-    println!();
-    println!("  To upgrade hut to the latest version:");
-    println!();
-    println!(
-        "  {} {}",
-        "$".dimmed(),
-        "cargo install --git https://github.com/hutpm/hut".dimmed()
-    );
-    println!();
-    println!(
-        "  {}",
-        "Or download a pre-built binary from the releases page:".dimmed()
-    );
-    println!(
-        "  {}",
-        "https://github.com/hutpm/hut/releases".underline()
-    );
+    use std::process::Command;
 
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    // Find hut's source directory
+    let source_dir = find_hut_source();
+
+    let Some(src_dir) = source_dir else {
+        eprintln!("{} Could not find hut's source directory.", "error:".red().bold());
+        eprintln!("       Install via git and rebuild:");
+        eprintln!("         git clone git@github.com:oliynykmax/hut.git ~/.hut");
+        eprintln!("         cd ~/.hut && cargo build --release");
+        eprintln!("         cp target/release/hut ~/.local/bin/");
+        return Err(HutError::Other(
+            "hut source directory not found — is hut installed from git?".into(),
+        ));
+    };
+
+    println!("{} Pulling latest changes...", "→".dimmed());
+    let pull = Command::new("git")
+        .args(["-C", src_dir.to_str().unwrap(), "pull", "--ff-only"])
+        .output()?;
+
+    if !pull.status.success() {
+        let stderr = String::from_utf8_lossy(&pull.stderr);
+        return Err(HutError::Other(format!("git pull failed: {}", stderr.trim())));
+    }
+
+    let new_version = get_hut_version(&src_dir)?;
+
+    if new_version == current_version {
+        println!(
+            "{} hut v{} is already the latest version",
+            "✓".green(),
+            current_version
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} Building hut v{}...",
+        "→".dimmed(),
+        new_version
+    );
+    let build = Command::new("cargo")
+        .args(["build", "--release", "--manifest-path"])
+        .arg(src_dir.join("Cargo.toml"))
+        .output()?;
+
+    if !build.status.success() {
+        let stderr = String::from_utf8_lossy(&build.stderr);
+        return Err(HutError::Other(format!("build failed: {}", stderr.trim())));
+    }
+
+    // Copy new binary over the current one
+    let current_exe = std::env::current_exe()?;
+    let new_binary = src_dir.join("target/release/hut");
+
+    std::fs::copy(&new_binary, &current_exe)?;
+
+    println!(
+        "{} hut upgraded from v{} to v{}",
+        "✓".green(),
+        current_version,
+        new_version
+    );
     Ok(())
+}
+
+/// Try to find hut's source directory by checking common locations.
+fn find_hut_source() -> Option<PathBuf> {
+    let candidates = [
+        hut_home().join("..").join(".hut"), // ~/.hut
+        dirs::home_dir()?.join(".hut"),
+        PathBuf::from("/usr/local/lib/hut"),
+        std::env::current_dir().ok()?,
+    ];
+
+    for cand in &candidates {
+        if cand.join("Cargo.toml").exists() && cand.join(".git").exists() {
+            return Some(cand.clone());
+        }
+    }
+    None
+}
+
+/// Read the version string from a hut checkout's Cargo.toml.
+fn get_hut_version(source_dir: &Path) -> HutResult<String> {
+    let cargo_toml = source_dir.join("Cargo.toml");
+    let content = std::fs::read_to_string(&cargo_toml)?;
+    for line in content.lines() {
+        if let Some(ver) = line.trim().strip_prefix("version = \"") {
+            if let Some(end) = ver.find('"') {
+                return Ok(ver[..end].to_string());
+            }
+        }
+    }
+    Err(HutError::Other(
+        "could not parse version from Cargo.toml".into(),
+    ))
 }
 
 /// 17. `hut patch <pkg>`

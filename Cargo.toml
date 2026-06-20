@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "A Bun-inspired build system and package manager for C/C++"
 license = "MIT"
-repository = "https://github.com/hutpm/hut"
+repository = "https://github.com/oliynykmax/hut"
 
 [[bin]]
 name = "hut"
