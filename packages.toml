@@ -1,40 +1,433 @@
 # hut packages index — local curated list of popular C/C++ libraries.
 # Maps package names to GitHub repos + build instructions.
-# No registry, no remote fetch. Ships with hut, user can extend it at
+# No registry, no remote fetch. Ships with hut, user can extend at
 # ~/.config/hut/packages.toml
 
 [packages]
 
-# ── Header-only libraries ─────────────────────────────────────────────
+[packages.CLI11]
+repo = "CLIUtils/CLI11"
+description = "C++11 command-line parser header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
 
-[packages.stb]
-repo = "nothings/stb"
-description = "Single-file public domain libraries for C/C++"
+[packages.FastNoiseLite]
+repo = "Auburn/FastNoiseLite"
+description = "Fast portable noise library header-only"
 includes = ["."]
+
+[packages.HandmadeMath]
+repo = "HandmadeMath/HandmadeMath"
+description = "Single-header math for games (C)"
+includes = ["."]
+defines = ["HANDMADE_MATH_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.acutest]
+repo = "mity/acutest"
+description = "Simple C/C++ unit testing single-header"
+includes = ["."]
+defines = ["ACUTEST_IMPLEMENTATION"]
+
+[packages.argh]
+repo = "adishavit/argh"
+description = "Frustration-free CLI processing C++14 header"
+includes = ["."]
+cflags = ["-std=c++14"]
+
+[packages.argparse]
+repo = "cofyc/argparse"
+description = "CLI argument parsing in C"
+includes = ["."]
+sources = ["argparse.c"]
+
+[packages.args]
+repo = "Taywee/args"
+description = "Single-header C++11 argument parser"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.backward-cpp]
+repo = "bombela/backward-cpp"
+description = "Beautiful C++ stack traces header-only"
+includes = ["."]
+sources = ["backward.cpp"]
+defines = ["BACKWARD_HAS_BFD=1"]
+cflags = ["-std=c++11", "-ldw", "-lbfd"]
+
+[packages.bgfx]
+repo = "bkaradzic/bgfx"
+description = "Cross-platform rendering library"
+includes = ["include", "3rdparty"]
+
+[packages.blake2]
+repo = "BLAKE2/BLAKE2"
+description = "BLAKE2 cryptographic hash"
+includes = ["."]
+sources = ["ref/blake2b-ref.c", "ref/blake2s-ref.c"]
+
+[packages.blake3]
+repo = "BLAKE3-team/BLAKE3"
+description = "Fast cryptographic hash C implementation"
+includes = ["c"]
+sources = ["c/blake3.c", "c/blake3_dispatch.c", "c/blake3_portable.c"]
+
+[packages.brieflz]
+repo = "jibsen/brieflz"
+description = "Small fast compression header-only with compiled backend"
+includes = ["."]
+
+[packages.brotli]
+repo = "google/brotli"
+description = "Brotli compression (Google)"
+includes = ["c/include"]
+sources = ["c/common/*.c", "c/dec/*.c", "c/enc/*.c"]
+
+[packages.bstrlib]
+repo = "websnarf/bstrlib"
+description = "The Better String Library — safe C strings"
+includes = ["."]
+sources = ["bstrlib.c"]
+
+[packages.c-periphery]
+repo = "vsergeev/c-periphery"
+description = "Linux peripheral I/O (GPIO/SPI/I2C/Serial)"
+includes = ["src"]
+sources = ["src/gpio.c", "src/spi.c", "src/i2c.c", "src/serial.c", "src/mmio.c"]
+
+[packages.cJSON]
+repo = "DaveGamble/cJSON"
+description = "Ultralightweight JSON in ANSI C"
+includes = ["."]
+sources = ["cJSON.c"]
+cflags = ["-lm"]
+
+[packages.catch2]
+repo = "catchorg/Catch2"
+description = "Modern C++ test framework single-header"
+includes = ["single_include/catch2"]
+defines = ["CATCH_CONFIG_MAIN"]
+cflags = ["-std=c++11"]
+
+[packages.cctz]
+repo = "google/cctz"
+description = "C++ timezone library"
+includes = ["include"]
+sources = ["src/*.cc"]
+cflags = ["-std=c++11"]
 
 [packages.cglm]
 repo = "recp/cglm"
-description = "Highly optimized graphics math (glm) for C"
+description = "Graphics math in C"
 includes = ["include"]
-libs = ["cglm"]
-sources = ["src/*.c"]
+sources = ["src/vec2.c", "src/vec3.c", "src/vec4.c", "src/mat2.c", "src/mat3.c", "src/mat4.c", "src/affine.c", "src/cam.c", "src/quat.c", "src/euler.c", "src/plane.c", "src/frustum.c", "src/box.c", "src/project.c", "src/sphere.c", "src/ease.c", "src/curve.c", "src/bezier.c", "src/ray.c", "src/affine2d.c"]
+cflags = ["-lm"]
 
-[packages.uthash]
-repo = "troydhanson/uthash"
-description = "C macros for hash tables, linked lists, etc."
+[packages.civetweb]
+repo = "civetweb/civetweb"
+description = "Embedded C/C++ web server"
+includes = ["include"]
+sources = ["src/civetweb.c"]
+cflags = ["-lpthread"]
+
+[packages.ck]
+repo = "concurrencykit/ck"
+description = "Concurrency primitives lock-free data structures"
+includes = ["include"]
+sources = ["src/*.c"]
+cflags = ["-lpthread"]
+
+[packages.clar]
+repo = "vicentebolea/clar"
+description = "Minimal clear C test framework"
+includes = ["."]
+sources = ["clar.c"]
+
+[packages.cmp]
+repo = "camgunz/cmp"
+description = "MessagePack for C single-header"
+includes = ["."]
+defines = ["CMP_IMPLEMENTATION"]
+
+[packages.cpp-httplib]
+repo = "yhirose/cpp-httplib"
+description = "C++ HTTP/HTTPS server+client single-header"
+includes = ["."]
+defines = ["CPPHTTPLIB_OPENSSL_SUPPORT=0"]
+cflags = ["-std=c++11", "-lpthread"]
+
+[packages.crc32c]
+repo = "google/crc32c"
+description = "CRC32C with hardware acceleration C++"
+includes = ["include"]
+sources = ["src/*.cc"]
+cflags = ["-std=c++11"]
+
+[packages.csv-parser]
+repo = "AriaFallah/csv-parser"
+description = "C++ header-only CSV reader"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.ctl]
+repo = "glouw/ctl"
+description = "C Template Library — generic containers via macros"
+includes = ["."]
+
+[packages.curve25519-donna]
+repo = "agl/curve25519-donna"
+description = "Curve25519 in C"
+includes = ["."]
+sources = ["curve25519-donna.c"]
+
+[packages.cute_headers]
+repo = "RandyGaul/cute_headers"
+description = "Collection of single-file game dev libs"
+includes = ["."]
+
+[packages.cwalk]
+repo = "likle/cwalk"
+description = "Path manipulation in C"
+includes = ["src"]
+sources = ["src/cwalk.c"]
+
+[packages.cxxopts]
+repo = "jarro2783/cxxopts"
+description = "Lightweight C++ CLI option parser header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.date]
+repo = "HowardHinnant/date"
+description = "Date/time library for C++11/14/17 header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.dear-imgui]
+repo = "ocornut/imgui"
+description = "Bloat-free immediate mode GUI"
+includes = ["."]
+sources = ["imgui.cpp", "imgui_draw.cpp", "imgui_tables.cpp", "imgui_widgets.cpp", "imgui_demo.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.debugbreak]
+repo = "scottt/debugbreak"
+description = "Header-only debugger breakpoints"
+includes = ["."]
+
+[packages.directxmath]
+repo = "microsoft/DirectXMath"
+description = "C++ SIMD math header-only"
+includes = ["Inc"]
+cflags = ["-std=c++11"]
+
+[packages.dirent]
+repo = "tronkko/dirent"
+description = "POSIX dirent.h for Windows single-header"
+includes = ["include"]
+
+[packages."docopt.cpp"]
+repo = "docopt/docopt.cpp"
+description = "C++ docopt single-header"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.doctest]
+repo = "doctest/doctest"
+description = "Fastest C++ testing framework single-header"
+includes = ["doctest"]
+defines = ["DOCTEST_CONFIG_IMPLEMENT"]
+cflags = ["-std=c++11"]
+
+[packages.dotenv-cpp]
+repo = "nick-thompson/dotenv-cpp"
+description = "Single-header .env loader for C++"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.dperf]
+repo = "baidu/dperf"
+description = "DPDK-based network load tester"
 includes = ["src"]
 
-[packages.parson]
-repo = "kgabis/parson"
-description = "Lightweight JSON library in C"
+[packages.dr_libs]
+repo = "mackron/dr_libs"
+description = "Single-file audio decoders (dr_wav/flac/mp3)"
 includes = ["."]
-sources = ["parson.c"]
+cflags = ["-lm"]
 
-[packages.logc]
-repo = "rxi/logc"
-description = "Simple C logging library"
+[packages."earcut.hpp"]
+repo = "mapbox/earcut.hpp"
+description = "Fast polygon triangulation C++ header"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.easyloggingpp]
+repo = "amrayn/easyloggingpp"
+description = "Single-header C++ logging"
+includes = ["src"]
+defines = ["ELPP_FEATURE_ALL"]
+cflags = ["-std=c++11"]
+
+[packages.ed25519]
+repo = "orlp/ed25519"
+description = "Ed25519 signatures in C"
+includes = ["src"]
+sources = ["src/*.c"]
+
+[packages.eigen]
+repo = "libeigen/eigen"
+description = "C++ template library for linear algebra header-only"
 includes = ["."]
-sources = ["log.c"]
+cflags = ["-std=c++11"]
+
+[packages.expat]
+repo = "libexpat/libexpat"
+description = "Fast streaming XML parser in C"
+includes = ["expat/lib"]
+sources = ["expat/lib/xmlparse.c", "expat/lib/xmlrole.c", "expat/lib/xmltok.c", "expat/lib/xmltok_impl.c", "expat/lib/xmltok_ns.c"]
+defines = ["XML_STATIC"]
+
+[packages.exprtk]
+repo = "ArashPartow/exprtk"
+description = "C++ math expression parser single-header"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.fast-cpp-csv-parser]
+repo = "ben-strasser/fast-cpp-csv-parser"
+description = "Fast single-header C++ CSV parser"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.fast_float]
+repo = "fastfloat/fast_float"
+description = "Fast exact float parser C++17 header-only"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.fastlz]
+repo = "ariya/FastLZ"
+description = "Small real-time compression"
+includes = ["."]
+sources = ["fastlz.c"]
+
+[packages.fctx]
+repo = "imb/fctx"
+description = "Single-header C++ unit testing with fixtures"
+includes = ["."]
+defines = ["FCTX_IMPLEMENTATION"]
+cflags = ["-std=c++11"]
+
+[packages.fmt]
+repo = "fmtlib/fmt"
+description = "Modern C++ formatting (safe printf-like)"
+includes = ["include"]
+sources = ["src/format.cc"]
+cflags = ["-std=c++11"]
+
+[packages.fpng]
+repo = "richgel999/fpng"
+description = "Fast C++ PNG writer"
+includes = ["src"]
+sources = ["src/fpng.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.ftxui]
+repo = "ArthurSonzogni/FTXUI"
+description = "C++ functional terminal UI header-only"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.gc]
+repo = "ivmai/bdwgc"
+description = "Boehm Demers Weiser garbage collector"
+includes = ["include"]
+sources = ["*.c", "*.cpp"]
+defines = ["GC_NOT_DLL"]
+cflags = ["-lpthread"]
+
+[packages.gcem]
+repo = "kthohr/gcem"
+description = "C++ compile-time math header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.glad]
+repo = "Dav1dde/glad"
+description = "OpenGL/Vulkan loader-generator"
+includes = ["include"]
+sources = ["src/glad.c"]
+
+[packages.glm]
+repo = "g-truc/glm"
+description = "OpenGL Mathematics C++ header-only"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.greatest]
+repo = "silentbicycle/greatest"
+description = "C unit testing single-header"
+includes = ["."]
+defines = ["GREATEST_MAIN_DEFS"]
+
+[packages."hashmap.c"]
+repo = "tidwall/hashmap.c"
+description = "Simple type-safe C hash map"
+includes = ["."]
+sources = ["hashmap.c"]
+
+[packages.hat-trie]
+repo = "Tessil/hat-trie"
+description = "Cache-conscious HAT-trie string map C++"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.heatshrink]
+repo = "atomicobject/heatshrink"
+description = "Embedded compression"
+includes = ["."]
+sources = ["heatshrink_encoder.c", "heatshrink_decoder.c"]
+
+[packages.highwayhash]
+repo = "google/highwayhash"
+description = "Fast strong hashes SipHash/HighwayHash"
+includes = ["."]
+sources = ["highwayhash/*.cc"]
+cflags = ["-std=c++11"]
+
+[packages.hiredis]
+repo = "redis/hiredis"
+description = "Minimal C Redis client"
+includes = ["."]
+sources = ["hiredis.c", "net.c", "sds.c", "async.c", "read.c", "sockcompat.c"]
+cflags = ["-lpthread"]
+
+[packages.hopscotch-map]
+repo = "Tessil/hopscotch-map"
+description = "Fast hopscotch hash map header-only C++"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.http-parser]
+repo = "nodejs/http-parser"
+description = "HTTP message parser (Node.js)"
+includes = ["."]
+sources = ["http_parser.c"]
+
+[packages.imnodes]
+repo = "Nelarius/imnodes"
+description = "Node graph editor for Dear ImGui"
+includes = ["."]
+sources = ["imnodes.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.implot]
+repo = "epezent/implot"
+description = "GPU-accelerated plotting for Dear ImGui"
+includes = ["."]
+sources = ["implot.cpp", "implot_items.cpp"]
+cflags = ["-std=c++11"]
 
 [packages.inih]
 repo = "benhoyt/inih"
@@ -42,97 +435,737 @@ description = "Simple .INI file parser in C"
 includes = ["."]
 sources = ["ini.c"]
 
-# ── Compression / data ────────────────────────────────────────────────
-
-[packages.zlib]
-repo = "madler/zlib"
-description = "A massively spiffy yet delicately unobtrusive compression library"
+[packages.jsmn]
+repo = "zserge/jsmn"
+description = "Minimal JSON tokenizer header-only"
 includes = ["."]
-libs = ["z"]
-sources = [
-    "adler32.c", "compress.c", "crc32.c", "deflate.c", "gzclose.c",
-    "gzlib.c", "gzread.c", "gzwrite.c", "infback.c", "inffast.c",
-    "inflate.c", "inftrees.c", "trees.c", "uncompr.c", "zutil.c"
-]
 
-[packages.zstd]
-repo = "facebook/zstd"
-description = "Zstandard — fast real-time compression"
-includes = ["lib"]
-libs = ["zstd"]
-sources = ["lib/common/*.c", "lib/compress/*.c", "lib/decompress/*.c", "lib/dictBuilder/*.c"]
-
-[packages.miniz]
-repo = "richgel999/miniz"
-description = "Single C file zlib-replacement library"
+[packages."json.h"]
+repo = "sheredom/json.h"
+description = "JSON parser single-header for C/C++"
 includes = ["."]
-sources = ["miniz.c", "miniz_zip.c", "miniz_tinfl.c", "miniz_tdef.c"]
+cflags = ["-lm"]
 
-[packages.cjson]
-repo = "DaveGamble/cJSON"
-description = "Ultralightweight JSON parser in ANSI C"
-includes = ["."]
-sources = ["cJSON.c"]
-
-# ── Networking ────────────────────────────────────────────────────────
-
-[packages.libhv]
-repo = "ithewei/libhv"
-description = "Like libevent, libev, and libuv — C network library"
-includes = ["."]
-libs = ["hv"]
-sources = ["base/*.c", "ssl/*.c", "event/*.c", "http/*.c", "http/client/*.c"]
-
-# ── Graphics / Audio / Games ──────────────────────────────────────────
-
-[packages.raylib]
-repo = "raysan5/raylib"
-description = "A simple and easy-to-use library to enjoy videogames programming"
+[packages.kazmath]
+repo = "Kazade/kazmath"
+description = "C math library for games"
 includes = ["src"]
-libs = ["raylib"]
 sources = ["src/*.c"]
-defines = ["PLATFORM_DESKTOP"]
-cflags = ["-DPLATFORM_DESKTOP"]
-
-[packages.sokol]
-repo = "floooh/sokol"
-description = "Minimal cross-platform standalone C headers"
-includes = ["."]
-
-[packages.miniaudio]
-repo = "mackron/miniaudio"
-description = "Audio playback and capture library"
-includes = ["."]
-sources = ["miniaudio.c"]
-
-[packages.stb_image]
-repo = "nothings/stb"
-description = "Image loading (header-only, subset of stb)"
-includes = ["."]
-# User defines STB_IMAGE_IMPLEMENTATION in one .c file
-
-# ── Testing ───────────────────────────────────────────────────────────
-
-[packages.utest]
-repo = "sheredom/utest.h"
-description = "Single header C unit testing framework"
-includes = ["."]
-
-[packages.greatest]
-repo = "silentbicycle/greatest"
-description = "A C testing library in 1 file. No dependencies, no dynamic allocation."
-includes = ["."]
-
-# ── Math / Scientific ─────────────────────────────────────────────────
+cflags = ["-lm"]
 
 [packages.kissfft]
 repo = "mborgerding/kissfft"
-description = "A Keep It Simple, Stupid, Fast Fourier Transform"
+description = "Keep It Simple Stupid FFT in C"
 includes = ["."]
-sources = ["kiss_fft.c"]
+sources = ["kiss_fft.c", "kiss_fftr.c"]
+cflags = ["-lm"]
+
+[packages.klib]
+repo = "attractivechaos/klib"
+description = "Generic data structures: hash, sort, B-tree, etc"
+includes = ["."]
+
+[packages.libart]
+repo = "armon/libart"
+description = "Adaptive Radix Tree in C"
+includes = ["src"]
+sources = ["src/art.c"]
+
+[packages.libdill]
+repo = "sustrik/libdill"
+description = "Structured concurrency in C single .c"
+includes = ["."]
+sources = ["libdill.c"]
+cflags = ["-lpthread"]
+
+[packages.libev]
+repo = "enki/libev"
+description = "High-performance event loop"
+includes = ["."]
+sources = ["ev.c"]
+cflags = ["-lpthread"]
+
+[packages.libevent]
+repo = "libevent/libevent"
+description = "Event notification library"
+includes = ["include"]
+sources = ["*.c"]
+cflags = ["-lpthread"]
+
+[packages.libfixmath]
+repo = "PetteriAimonen/libfixmath"
+description = "Fixed-point math for embedded"
+includes = ["libfixmath"]
+sources = ["libfixmath/*.c"]
+
+[packages.libhydrogen]
+repo = "jedisct1/libhydrogen"
+description = "Lightweight crypto single .c/.h"
+includes = ["."]
+sources = ["hydrogen.c"]
+
+[packages.libmdbx]
+repo = "erthink/libmdbx"
+description = "Extended LMDB key-value store"
+includes = ["."]
+sources = ["mdbx.c"]
+cflags = ["-lpthread"]
+
+[packages.libmill]
+repo = "sustrik/libmill"
+description = "Go-style concurrency in C"
+includes = ["."]
+sources = ["*.c"]
+cflags = ["-lpthread"]
+
+[packages.libopencm3]
+repo = "libopencm3/libopencm3"
+description = "ARM Cortex-M microcontroller library"
+includes = ["include"]
+sources = ["lib/**/*.c"]
+
+[packages.libsoundio]
+repo = "andrewrk/libsoundio"
+description = "Cross-platform audio I/O"
+includes = ["."]
+sources = ["src/soundio.c", "src/alsa.c", "src/pulseaudio.c", "src/util.c", "src/os.c"]
+cflags = ["-lasound", "-lpthread", "-lm"]
+
+[packages.libuv]
+repo = "libuv/libuv"
+description = "Cross-platform asynchronous I/O"
+includes = ["include"]
+sources = ["src/*.c"]
+cflags = ["-lpthread", "-ldl"]
+
+[packages.libyaml]
+repo = "yaml/libyaml"
+description = "YAML 1.1 parser/emitter in C"
+includes = ["include"]
+sources = ["src/api.c", "src/reader.c", "src/scanner.c", "src/parser.c", "src/loader.c", "src/writer.c", "src/emitter.c", "src/dumper.c"]
+defines = ["YAML_DECLARE_STATIC"]
+
+[packages."linmath.h"]
+repo = "datenwolf/linmath.h"
+description = "Lean linear math for graphics single-header C"
+includes = ["."]
+defines = ["LINMATH_H_DEFINE_VEC_AND_MATRIX"]
+
+[packages.llhttp]
+repo = "nodejs/llhttp"
+description = "HTTP parser via llparse"
+includes = ["."]
+sources = ["llhttp.c", "api.c", "http.c"]
+
+[packages.lmdb]
+repo = "LMDB/lmdb"
+description = "Lightning Memory-Mapped Database"
+includes = ["libraries/liblmdb"]
+sources = ["libraries/liblmdb/mdb.c", "libraries/liblmdb/midl.c"]
+cflags = ["-lpthread"]
+
+[packages.lodepng]
+repo = "lvandeve/lodepng"
+description = "PNG encoder/decoder single .cpp/.h no deps"
+includes = ["."]
+sources = ["lodepng.cpp"]
+cflags = ["-std=c++11"]
+
+[packages."log.c"]
+repo = "rxi/log.c"
+description = "Minimal C logging"
+includes = ["src"]
+sources = ["src/log.c"]
+defines = ["LOG_USE_COLOR"]
+
+[packages.lua]
+repo = "lua/lua"
+description = "Lua scripting language embeddable"
+includes = ["src"]
+sources = ["src/*.c"]
+defines = ["LUA_COMPAT_5_3"]
+cflags = ["-lm", "-ldl"]
+
+[packages.lvgl]
+repo = "lvgl/lvgl"
+description = "Light and Versatile embedded graphics"
+includes = ["."]
+sources = ["src/**/*.c"]
+
+[packages.lz4]
+repo = "lz4/lz4"
+description = "Extremely fast compression"
+includes = ["lib"]
+sources = ["lib/lz4.c", "lib/lz4hc.c", "lib/lz4frame.c"]
+
+[packages.lzfse]
+repo = "lzfse/lzfse"
+description = "LZFSE compression (Apple)"
+includes = ["src"]
+sources = ["src/lzfse_encode.c", "src/lzfse_decode.c", "src/lzfse_encode_base.c", "src/lzfse_decode_base.c", "src/lzvn_encode_base.c", "src/lzvn_decode_base.c"]
+
+[packages.magic_enum]
+repo = "Neargye/magic_enum"
+description = "Static enum reflection header-only C++17"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.marl]
+repo = "google/marl"
+description = "Thread/fiber task scheduler C++11"
+includes = ["include"]
+sources = ["src/*.cpp"]
+cflags = ["-std=c++11", "-lpthread"]
+
+[packages.mbedtls]
+repo = "Mbed-TLS/mbedtls"
+description = "TLS and crypto for embedded"
+includes = ["include"]
+sources = ["library/*.c"]
+defines = ["MBEDTLS_CONFIG_FILE='mbedtls/mbedtls_config.h'"]
+
+[packages.metrohash]
+repo = "jandrewrogers/MetroHash"
+description = "Fast non-crypto hash functions header-only C++"
+includes = ["src"]
+cflags = ["-std=c++11"]
+
+[packages.micro-ecc]
+repo = "kmackay/micro-ecc"
+description = "Small ECDH/ECDSA for 8/32/64-bit CPUs"
+includes = ["."]
+sources = ["uECC.c"]
+
+[packages.microui]
+repo = "rxi/microui"
+description = "Tiny portable immediate-mode UI in C"
+includes = ["src"]
+sources = ["src/microui.c"]
+
+[packages.mimalloc]
+repo = "microsoft/mimalloc"
+description = "Compact high-performance allocator"
+includes = ["include"]
+sources = ["src/static.c"]
+defines = ["MI_STATIC_LIB"]
+cflags = ["-lpthread"]
+
+[packages.minIni]
+repo = "compuphase/minIni"
+description = "Mini INI parser for embedded"
+includes = ["."]
+sources = ["minIni.c"]
+
+[packages.miniaudio]
+repo = "mackron/miniaudio"
+description = "Single-header audio playback/capture"
+includes = ["."]
+defines = ["MINIAUDIO_IMPLEMENTATION"]
+cflags = ["-lm", "-lpthread", "-ldl"]
+
+[packages.minimp3]
+repo = "lieff/minimp3"
+description = "Minimal single-header MP3 decoder"
+includes = ["."]
+defines = ["MINIMP3_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.miniz]
+repo = "richgel999/miniz"
+description = "Single C file zlib replacement (deflate/inflate/zip/PNG)"
+includes = ["."]
+sources = ["miniz.c"]
+
+[packages.mjson]
+repo = "cesanta/mjson"
+description = "C/C++ JSON parser emitter and JSON-RPC single .c/.h"
+includes = ["."]
+sources = ["mjson.c"]
+cflags = ["-lm"]
+
+[packages.mongoose]
+repo = "cesanta/mongoose"
+description = "Embedded HTTP/MQTT/WebSocket single-file"
+includes = ["."]
+sources = ["mongoose.c"]
+defines = ["MG_ENABLE_OPENSSL=0"]
+cflags = ["-pthread"]
+
+[packages.monocypher]
+repo = "LoupVaillant/Monocypher"
+description = "Easy deployable crypto single .c/.h"
+includes = ["src"]
+sources = ["src/monocypher.c"]
+
+[packages.mpack]
+repo = "ludocode/mpack"
+description = "MessagePack in C single .c/.h"
+includes = ["src"]
+sources = ["src/mpack/mpack.c"]
+
+[packages.muFFT]
+repo = "Themaister/muFFT"
+description = "Single-header FFT for C/C++"
+includes = ["."]
+cflags = ["-lm"]
+
+[packages.munit]
+repo = "nemequ/munit"
+description = "Full-featured C unit testing"
+includes = ["."]
+sources = ["munit.c"]
+
+[packages.nameof]
+repo = "Neargye/nameof"
+description = "C++ nameof() operator header-only"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.nanopb]
+repo = "nanopb/nanopb"
+description = "Protocol Buffers for embedded"
+includes = ["."]
+sources = ["pb_common.c", "pb_decode.c", "pb_encode.c"]
+
+[packages.nanosvg]
+repo = "memononen/nanosvg"
+description = "SVG parser and rasterizer single-header"
+includes = ["src"]
+defines = ["NANOSVG_IMPLEMENTATION", "NANOSVGRAST_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.nanovg]
+repo = "memononen/nanovg"
+description = "Anti-aliased 2D vector graphics"
+includes = ["src"]
+sources = ["src/nanovg.c"]
+cflags = ["-lGL"]
+
+[packages.nativefiledialog]
+repo = "mlabbe/nativefiledialog"
+description = "Portable native file dialogs in C"
+includes = ["src/include"]
+sources = ["src/nfd_common.c", "src/nfd_gtk.c"]
+
+[packages.nlohmann-json]
+repo = "nlohmann/json"
+description = "JSON for Modern C++ single-header"
+includes = ["single_include"]
+cflags = ["-std=c++11"]
+
+[packages.nuklear]
+repo = "Immediate-Mode-UI/Nuklear"
+description = "Single-header ANSI C immediate mode GUI"
+includes = ["."]
+defines = ["NK_IMPLEMENTATION"]
+cflags = ["-lGL", "-lX11", "-lm"]
+
+[packages.openlibm]
+repo = "JuliaMath/openlibm"
+description = "High quality libm from Julia"
+includes = ["include", "src"]
+sources = ["src/*.c"]
+
+[packages.ordered-map]
+repo = "Tessil/ordered-map"
+description = "Insertion-ordered hash map/set C++"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.parson]
+repo = "kgabis/parson"
+description = "Lightweight JSON in C"
+includes = ["."]
+sources = ["parson.c"]
+
+[packages.picohttpparser]
+repo = "h2o/picohttpparser"
+description = "Tiny fast HTTP parser in C"
+includes = ["."]
+sources = ["picohttpparser.c"]
+
+[packages.plog]
+repo = "SergiusTheBest/plog"
+description = "Portable C++ logging header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.popl]
+repo = "badaix/popl"
+description = "C++ program options parser header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.protobuf-c]
+repo = "protobuf-c/protobuf-c"
+description = "Protocol Buffers in C"
+includes = ["."]
+sources = ["protobuf-c/protobuf-c.c"]
+
+[packages.pugixml]
+repo = "zeux/pugixml"
+description = "Fast lightweight C++ XML parser"
+includes = ["src"]
+sources = ["src/pugixml.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.pystring]
+repo = "imageworks/pystring"
+description = "Python-like string ops in C++"
+includes = ["."]
+sources = ["pystring.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.qoi]
+repo = "phoboslab/qoi"
+description = "Quite OK Image format single-header"
+includes = ["."]
+defines = ["QOI_IMPLEMENTATION"]
+
+[packages.rapidjson]
+repo = "Tencent/rapidjson"
+description = "Fast JSON parser/generator C++ header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.raygui]
+repo = "raysan5/raygui"
+description = "Immediate-mode GUI for raylib header-only"
+includes = ["src"]
+defines = ["RAYGUI_IMPLEMENTATION"]
+
+[packages.raylib]
+repo = "raysan5/raylib"
+description = "Simple game programming library"
+includes = ["src"]
+cflags = ["-lGL", "-lm", "-lpthread", "-ldl", "-lrt", "-lX11"]
+
+[packages.ringbuf]
+repo = "rmind/ringbuf"
+description = "Lock-free ring buffer in C"
+includes = ["."]
+sources = ["ringbuf.c"]
+
+[packages.robin-map]
+repo = "Tessil/robin-map"
+description = "Fast hash map/set header-only C++17"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.rpmalloc]
+repo = "mjansson/rpmalloc"
+description = "Cross-platform lock-free allocator"
+includes = ["."]
+sources = ["rpmalloc.c"]
+cflags = ["-lpthread"]
+
+[packages.scope_guard]
+repo = "ricab/scope_guard"
+description = "Single-header C++ RAII scope guard"
+includes = ["."]
+cflags = ["-std=c++11"]
+
+[packages.sds]
+repo = "antirez/sds"
+description = "Simple Dynamic Strings for C"
+includes = ["."]
+sources = ["sds.c"]
+
+[packages.sglib]
+repo = "snaipe/sglib"
+description = "Simple Generic Library for C via macros"
+includes = ["."]
+
+[packages.sha2]
+repo = "amosnier/sha-2"
+description = "SHA-256/512 in C"
+includes = ["."]
+sources = ["sha-256.c"]
+
+[packages.simdjson]
+repo = "simdjson/simdjson"
+description = "GB/sec JSON parsing C++ single-header"
+includes = ["singleheader"]
+cflags = ["-std=c++17"]
+
+[packages.slre]
+repo = "cesanta/slre"
+description = "Super Light Regular Expression"
+includes = ["."]
+sources = ["slre.c"]
+
+[packages.snappy]
+repo = "google/snappy"
+description = "Fast compression (Google)"
+includes = ["."]
+sources = ["snappy-c.cc"]
+cflags = ["-std=c++11"]
+
+[packages.sokol]
+repo = "floooh/sokol"
+description = "Single-header graphics libs (sokol_gfx/app/glue)"
+includes = ["."]
+defines = ["SOKOL_IMPL", "SOKOL_GLCORE"]
+cflags = ["-lGL", "-lX11", "-lXi", "-lXcursor", "-ldl", "-lpthread"]
+
+[packages.soloud]
+repo = "jarikomppa/soloud"
+description = "Portable audio engine for games"
+includes = ["include"]
+sources = ["src/core/*.cpp", "src/audiosource/**/*.cpp"]
+cflags = ["-std=c++11", "-lpthread", "-ldl", "-lm"]
+
+[packages.spdlog]
+repo = "gabime/spdlog"
+description = "Fast C++ logging header-only"
+includes = ["include"]
+defines = ["SPDLOG_COMPILED_LIB"]
+cflags = ["-std=c++11", "-lpthread"]
+
+[packages.sqlite3]
+repo = "sqlite/sqlite"
+description = "SQLite amalgamation single .c/.h"
+includes = ["."]
+sources = ["sqlite3.c"]
+defines = ["SQLITE_THREADSAFE=1"]
+cflags = ["-ldl", "-lpthread", "-lm"]
+
+[packages.stb_ds]
+repo = "nothings/stb"
+description = "Typesafe dynamic arrays, hash maps (stb)"
+includes = ["."]
+defines = ["STB_DS_IMPLEMENTATION"]
+
+[packages.stb_image]
+repo = "nothings/stb"
+description = "Single-header image loader (PNG/JPG/BMP/TGA/etc)"
+includes = ["."]
+defines = ["STB_IMAGE_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.stb_image_resize]
+repo = "nothings/stb"
+description = "High-quality image resizing (stb)"
+includes = ["."]
+defines = ["STB_IMAGE_RESIZE_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.stb_image_write]
+repo = "nothings/stb"
+description = "PNG/TGA/BMP/JPG writer (stb)"
+includes = ["."]
+defines = ["STB_IMAGE_WRITE_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.stb_perlin]
+repo = "nothings/stb"
+description = "Perlin noise (stb)"
+includes = ["."]
+defines = ["STB_PERLIN_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.stb_vorbis]
+repo = "nothings/stb"
+description = "Ogg Vorbis decoder (stb)"
+includes = ["."]
+defines = ["STB_VORBIS_IMPLEMENTATION"]
+cflags = ["-lm"]
+
+[packages.string-theory]
+repo = "zaphoyd/string_theory"
+description = "Modern C++ string header-only SSO UTF-8"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages."subprocess.h"]
+repo = "sheredom/subprocess.h"
+description = "Single-header process launching C/C++"
+includes = ["."]
+defines = ["SUBPROCESS_IMPLEMENTATION"]
+
+[packages.t1ha]
+repo = "erthink/t1ha"
+description = "Fast Positive Hash header-only C"
+includes = ["."]
+
+[packages.taskflow]
+repo = "taskflow/taskflow"
+description = "Modern C++ parallel tasking header-only"
+includes = ["taskflow"]
+cflags = ["-std=c++17", "-lpthread"]
+
+[packages.tclap]
+repo = "tclap/tclap"
+description = "Templatized C++ CLI parser header-only"
+includes = ["include"]
+cflags = ["-std=c++11"]
+
+[packages.thread-pool]
+repo = "bshoshany/thread-pool"
+description = "Fast C++17 thread pool single-header"
+includes = ["."]
+cflags = ["-std=c++17", "-lpthread"]
+
+[packages.tiny-aes-c]
+repo = "kokke/tiny-AES-c"
+description = "Portable AES128/192/256 in C"
+includes = ["."]
+sources = ["aes.c"]
+
+[packages.tiny-regex-c]
+repo = "kokke/tiny-regex-c"
+description = "Small portable regex in C"
+includes = ["."]
+sources = ["re.c"]
+
+[packages.tinyalsa]
+repo = "tinyalsa/tinyalsa"
+description = "Tiny ALSA for embedded"
+includes = ["include"]
+sources = ["src/mixer.c", "src/pcm.c"]
+
+[packages.tinycthread]
+repo = "tinycthread/tinycthread"
+description = "Portable C11 threads compat layer"
+includes = ["source"]
+sources = ["source/tinycthread.c"]
+cflags = ["-lpthread"]
 
 [packages.tinyexpr]
 repo = "codeplea/tinyexpr"
-description = "Tiny recursive descent expression parser/evaluator"
+description = "Tiny recursive math expression parser"
 includes = ["."]
 sources = ["tinyexpr.c"]
+cflags = ["-lm"]
+
+[packages.tinyexr]
+repo = "syoyo/tinyexr"
+description = "Small OpenEXR library single-header"
+includes = ["."]
+defines = ["TINYEXR_IMPLEMENTATION"]
+cflags = ["-std=c++11"]
+
+[packages.tinyfd]
+repo = "native-toolkit/tinyfd"
+description = "Tiny file dialogs single .c/.h"
+includes = ["."]
+sources = ["tinyfiledialogs.c"]
+
+[packages.tinyobjloader]
+repo = "tinyobjloader/tinyobjloader"
+description = "Single-header Wavefront .obj loader"
+includes = ["."]
+defines = ["TINYOBJLOADER_IMPLEMENTATION"]
+cflags = ["-std=c++11"]
+
+[packages.tinyusb]
+repo = "hathach/tinyusb"
+description = "Cross-platform USB stack for embedded"
+includes = ["src"]
+sources = ["src/*.c"]
+
+[packages.tinyxml2]
+repo = "leethomason/tinyxml2"
+description = "Simple C++ XML parser"
+includes = ["."]
+sources = ["tinyxml2.cpp"]
+cflags = ["-std=c++11"]
+
+[packages.tlsf]
+repo = "mattconte/tlsf"
+description = "Two-Level Segregated Fit allocator"
+includes = ["."]
+sources = ["tlsf.c"]
+
+[packages.tomlc99]
+repo = "cktan/tomlc99"
+description = "TOML parser in C99 single .c/.h"
+includes = ["."]
+sources = ["toml.c"]
+cflags = ["-lm"]
+
+[packages.tomlplusplus]
+repo = "marzer/tomlplusplus"
+description = "TOML parser C++17 header-only"
+includes = ["include"]
+cflags = ["-std=c++17"]
+
+[packages.unqlite]
+repo = "symisc/unqlite"
+description = "Embedded NoSQL database single .c/.h"
+includes = ["."]
+sources = ["unqlite.c"]
+cflags = ["-lpthread", "-ldl", "-lm"]
+
+[packages."utest.h"]
+repo = "sheredom/utest.h"
+description = "Single-header C/C++ unit testing"
+includes = ["."]
+defines = ["UTEST_H_IMPLEMENTATION"]
+
+[packages."utf8.h"]
+repo = "sheredom/utf8.h"
+description = "Single-header UTF-8 handling for C/C++"
+includes = ["."]
+
+[packages.uthash]
+repo = "troydhanson/uthash"
+description = "Hash tables, arrays, lists via C macros"
+includes = ["src"]
+
+[packages.uzlib]
+repo = "pfalcon/uzlib"
+description = "Tiny zlib decompression for microcontrollers"
+includes = ["."]
+sources = ["tinf*.c"]
+
+[packages.vec]
+repo = "rxi/vec"
+description = "Type-safe dynamic array in C"
+includes = ["."]
+sources = ["vec.c"]
+
+[packages.vedis]
+repo = "symisc/vedis"
+description = "Embeddable Redis-like datastore single .c"
+includes = ["."]
+sources = ["vedis.c"]
+cflags = ["-lpthread", "-ldl", "-lm"]
+
+[packages.whereami]
+repo = "gpakosz/whereami"
+description = "Locate executable/module on filesystem"
+includes = ["src"]
+sources = ["src/whereami.c"]
+
+[packages.wyhash]
+repo = "wangyi-fudan/wyhash"
+description = "Fast portable hash function and PRNG single-header"
+includes = ["."]
+
+[packages.xxhash]
+repo = "Cyan4973/xxHash"
+description = "Extremely fast non-crypto hash"
+includes = ["."]
+sources = ["xxhash.c"]
+defines = ["XXH_STATIC_LINKING_ONLY"]
+
+[packages.yyjson]
+repo = "ibireme/yyjson"
+description = "Fastest JSON in C single .c/.h"
+includes = ["src"]
+sources = ["src/yyjson.c"]
+cflags = ["-lm"]
+
+[packages.zopfli]
+repo = "google/zopfli"
+description = "Very good but slow deflate/gzip"
+includes = ["src"]
+sources = ["src/zopfli/*.c"]
+cflags = ["-lm"]
+
+[packages.zstd]
+repo = "facebook/zstd"
+description = "Zstandard fast real-time compression"
+includes = ["lib"]
+sources = ["lib/common/*.c", "lib/compress/*.c", "lib/decompress/*.c"]
