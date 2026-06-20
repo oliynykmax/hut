@@ -1409,9 +1409,17 @@ fn cmd_dev() -> HutResult<()> {
     // Build once
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let index = hut::index::PackagesIndex::load_builtin()?;
-    let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
+
+    // Only resolve deps if there are any
+    let resolved = if config.dependencies.is_empty()
+        && config.build_dependencies.is_empty()
+        && config.test_dependencies.is_empty()
+    {
+        vec![]
+    } else {
+        let index = hut::index::PackagesIndex::load_builtin()?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?
+    };
 
     hut::builder::build_project(&config, &resolved, false)?;
 
