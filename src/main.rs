@@ -1180,15 +1180,27 @@ fn cmd_upgrade() -> HutResult<()> {
 
     let Some(src_dir) = source_dir else {
         eprintln!(
-            "{} Could not find hut's source directory.",
+            "{} Could not find hut's git source directory.",
             "error:".red().bold()
         );
-        eprintln!("       Install via git and rebuild:");
-        eprintln!("         git clone git@github.com:oliynykmax/hut.git ~/.hut");
-        eprintln!("         cd ~/.hut && cargo build --release");
-        eprintln!("         cp target/release/hut ~/.local/bin/");
+        eprintln!();
+        eprintln!("  hut upgrade needs the source repo to git pull + rebuild.");
+        eprintln!("  Clone it once and hut will self-update from there:");
+        eprintln!();
+        eprintln!(
+            "    {}",
+            "git clone git@github.com:oliynykmax/hut.git ~/.hut".dimmed()
+        );
+        eprintln!(
+            "    {}",
+            "cd ~/.hut && cargo build --release".dimmed()
+        );
+        eprintln!(
+            "    {}",
+            "cp target/release/hut ~/.local/bin/".dimmed()
+        );
         return Err(HutError::Other(
-            "hut source directory not found — is hut installed from git?".into(),
+            "hut source directory not found. Clone to ~/.hut for self-update support.".into(),
         ));
     };
 
@@ -1244,10 +1256,11 @@ fn cmd_upgrade() -> HutResult<()> {
 
 /// Try to find hut's source directory by checking common locations.
 fn find_hut_source() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
     let candidates = [
-        hut_home().join("..").join(".hut"), // ~/.hut
-        dirs::home_dir()?.join(".hut"),
+        home.join(".hut"),             // default git clone location
         PathBuf::from("/usr/local/lib/hut"),
+        home.join("hut"),              // cloned as ~/hut
         std::env::current_dir().ok()?,
     ];
 
