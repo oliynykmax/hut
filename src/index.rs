@@ -1,5 +1,7 @@
-//! Local package index — loads packages.toml (shipped with hut or user-extended).
-//! No remote registry, no HTTP fetch.  Just a curated TOML file.
+//! Local package index — maps package names to GitHub repos + build recipes.
+//! The default index is COMPILED INTO the binary (packages.toml baked in).
+//! Users can extend it at ~/.config/hut/packages.toml — that file takes
+//! precedence over the built-in index.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -40,25 +42,28 @@ pub struct PackagesIndex {
     pub packages: BTreeMap<String, PackageEntry>,
 }
 
+/// Built-in packages.toml — compiled directly into the binary.
+static BUILTIN_PACKAGES: &str = include_str!("../packages.toml");
+
 impl PackagesIndex {
     /// Load the index from a TOML file.
     pub fn load(path: &std::path::Path) -> HutResult<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| HutError::Other(format!("Failed to read packages index {}: {e}", path.display())))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            HutError::Other(format!(
+                "Failed to read packages index {}: {e}",
+                path.display()
+            ))
+        })?;
         let index: PackagesIndex = toml::from_str(&content)
             .map_err(|e| HutError::Other(format!("Invalid packages.toml: {e}")))?;
         Ok(index)
     }
 
-    /// Load the built-in packages.toml shipped with hut.
-    /// Falls back to searching standard locations.
+    /// Load the packages index. Order:
+    /// 1. ~/.config/hut/packages.toml (user override — takes full precedence)
+    /// 2. Built-in index (compiled into binary)
     pub fn load_builtin() -> HutResult<Self> {
-        // Search order:
-        // 1. ~/.config/hut/packages.toml (user override)
-        // 2. <hut binary dir>/../packages.toml (installed alongside binary)
-        // 3. /usr/local/share/hut/packages.toml (system install)
-        // 4. Embedded fallback (compiled into binary)
-
+        // User override at ~/.config/hut/packages.toml
         let user_path = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("hut")
@@ -67,32 +72,10 @@ impl PackagesIndex {
             return Self::load(&user_path);
         }
 
-        // Look relative to the current executable
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(parent) = exe.parent() {
-                let next_to_bin = parent.join("packages.toml");
-                if next_to_bin.exists() {
-                    return Self::load(&next_to_bin);
-                }
-                // Also check one level up (for target/release/ layout)
-                if let Some(grandparent) = parent.parent() {
-                    let one_up = grandparent.join("packages.toml");
-                    if one_up.exists() {
-                        return Self::load(&one_up);
-                    }
-                }
-            }
-        }
-
-        // System path
-        let system_path = PathBuf::from("/usr/local/share/hut/packages.toml");
-        if system_path.exists() {
-            return Self::load(&system_path);
-        }
-
-        Err(HutError::Other(
-            "No packages.toml found. Place one at ~/.config/hut/packages.toml".into(),
-        ))
+        // Fall back to compiled-in index
+        let index: PackagesIndex = toml::from_str(BUILTIN_PACKAGES)
+            .expect("Built-in packages.toml is invalid — fix it before building");
+        Ok(index)
     }
 
     /// Look up a package by name.
@@ -106,8 +89,7 @@ impl PackagesIndex {
         self.packages
             .iter()
             .filter(|(name, entry)| {
-                name.to_lowercase().contains(&q)
-                    || entry.description.to_lowercase().contains(&q)
+                name.to_lowercase().contains(&q) || entry.description.to_lowercase().contains(&q)
             })
             .collect()
     }
