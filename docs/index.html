@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hut — the Bun for C/C++</title>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --surface2: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #d4d4d4;
+  --dim: #707070;
+  --accent: #f0b028;
+  --green: #4ec96a;
+  --blue: #5ea3e0;
+  --red: #e0555a;
+  --font: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  --sans: system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Nav ─────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 48px;
+}
+nav .logo { font-family: var(--font); font-weight: 700; font-size: 16px; color: var(--text); }
+nav .logo span { color: var(--accent); }
+nav .links { display: flex; gap: 20px; font-size: 13px; }
+nav .links a { color: var(--dim); transition: color .15s; font-family: var(--font); }
+nav .links a:hover { color: var(--text); text-decoration: none; }
+
+/* ── Hero ─────────────────────────── */
+.hero {
+  padding: 160px 24px 80px;
+  text-align: center;
+  max-width: 720px;
+  width: 100%;
+}
+.hero h1 {
+  font-family: var(--font);
+  font-size: clamp(36px, 6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.hero p.sub {
+  margin-top: 20px;
+  font-size: 18px;
+  color: var(--dim);
+  line-height: 1.6;
+  max-width: 540px;
+  margin-inline: auto;
+}
+.hero .install {
+  margin-top: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 14px;
+}
+.hero .install .prompt {
+  color: var(--green);
+  padding: 12px 16px;
+  user-select: none;
+}
+.hero .install code {
+  color: var(--text);
+  padding: 12px 16px 12px 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.hero .install .copy-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--dim);
+  padding: 12px 16px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 12px;
+  transition: color .15s;
+}
+.hero .install .copy-btn:hover { color: var(--text); }
+.hero .install .copy-btn.copied { color: var(--green); }
+
+/* ── Code window ──────────────────── */
+.code-window {
+  margin: 48px auto 0;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: left;
+}
+.code-window .bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.code-window .bar .dot { width: 10px; height: 10px; border-radius: 50%; }
+.code-window .bar .dot.r { background: var(--red); }
+.code-window .bar .dot.y { background: var(--accent); }
+.code-window .bar .dot.g { background: var(--green); }
+.code-window .bar .title {
+  margin-left: 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--dim);
+}
+.code-window pre {
+  padding: 20px;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-x: auto;
+  color: var(--text);
+}
+.code-window pre .c { color: var(--dim); }
+.code-window pre .g { color: var(--green); }
+.code-window pre .b { color: var(--blue); }
+
+/* ── Features ─────────────────────── */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px;
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
+  background: var(--border);
+}
+.features .card {
+  background: var(--bg);
+  padding: 32px 28px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.features .card .icon {
+  font-size: 24px; font-family: var(--font);
+  color: var(--accent);
+}
+.features .card h3 {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--text);
+  font-weight: 600;
+}
+.features .card p {
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.6;
+}
+
+/* ── Footer ───────────────────────── */
+footer {
+  margin-top: 80px;
+  padding: 40px 24px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  max-width: 920px;
+  font-size: 13px;
+  color: var(--dim);
+}
+footer a { color: var(--dim); }
+footer a:hover { color: var(--text); }
+
+/* ── Responsive ───────────────────── */
+@media (max-width: 640px) {
+  .hero { padding: 120px 20px 60px; }
+  .hero .install { flex-wrap: wrap; }
+  .hero .install code { font-size: 12px; padding: 12px; }
+  .hero .install .copy-btn { width: 100%; border-left: none; border-top: 1px solid var(--border); text-align: center; }
+  .features { grid-template-columns: 1fr; }
+  nav { padding: 0 16px; }
+  nav .links { gap: 12px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="logo"><span>🏠</span> hut</a>
+  <div class="links">
+    <a href="#features">Features</a>
+    <a href="https://github.com/oliynykmax/hut">GitHub</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>The <em>Bun</em> for <em>C/C++</em></h1>
+  <p class="sub">
+    Fast, zero‑config build system and package manager. No CMake, no Makefiles — just write C and run.
+  </p>
+
+  <div class="install">
+    <span class="prompt">$</span>
+    <code>git clone git@github.com:oliynykmax/hut.git ~/.hut && cd ~/.hut && cargo build --release && cp target/release/hut ~/.local/bin/</code>
+    <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+  </div>
+
+  <div class="code-window">
+    <div class="bar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="title">terminal — hut workflow</span>
+    </div>
+    <pre><span class="c"># Create a new project</span>
+<span class="g">$</span> hut init hello && cd hello
+
+<span class="c"># Build and run — zero config</span>
+<span class="g">$</span> hut run
+<span class="b">Compiling</span> src/main.c
+<span class="b">Finished</span> release in 0.03s
+Hello, world!
+
+<span class="c"># Add a dependency</span>
+<span class="g">$</span> hut a raylib
+<span class="b">Resolved</span> raylib ^5.5.0
+<span class="b">Installed</span> 1 package in 0.8s</pre>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <div class="card">
+    <span class="icon">⚡</span>
+    <h3>Zero config</h3>
+    <p>Drop a <code>main.c</code> and run. No CMakeLists.txt, no Makefiles, no build scripts. hut figures it out.</p>
+  </div>
+  <div class="card">
+    <span class="icon">📦</span>
+    <h3>Package manager</h3>
+    <p>Add dependencies with <code>hut add</code>. Resolves versions, fetches source, links automatically. Like Bun for C.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🔥</span>
+    <h3>JIT compilation</h3>
+    <p>Run C files instantly with <code>hut run --jit</code>. No binaries written — compiles in‑memory via libtcc.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🎯</span>
+    <h3>Compiler choice</h3>
+    <p>GCC, Clang — your call. hut auto‑detects what's available and lets you pick. Or set it once and forget.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🧩</span>
+    <h3>Header‑only libs</h3>
+    <p>Pulling a header‑only library? hut resolves includes, generates a unified header dir, and wires up -I flags.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🔄</span>
+    <h3>Self‑updating</h3>
+    <p><code>hut upgrade</code> pulls the latest source, rebuilds, and replaces the binary — all in one command.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🏗️</span>
+    <h3>Workspaces</h3>
+    <p>Monorepo support. Run commands across packages, manage shared deps, link local crates together.</p>
+  </div>
+  <div class="card">
+    <span class="icon">🧹</span>
+    <h3>Clean &amp; fast</h3>
+    <p>Rust under the hood. Parallel builds, incremental linking, <code>hut clean</code> to free space. No bloat.</p>
+  </div>
+  <div class="card">
+    <span class="icon">⌨️</span>
+    <h3>Bun‑style aliases</h3>
+    <p><code>hut b</code>, <code>hut i</code>, <code>hut a</code>, <code>hut rm</code>, <code>hut up</code>, <code>hut t</code> — short and muscle‑memory friendly.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Built with Rust. MIT licensed. <a href="https://github.com/oliynykmax/hut">github.com/oliynykmax/hut</a></p>
+</footer>
+
+<script>
+function copyInstall(btn) {
+  const code = btn.parentElement.querySelector('code');
+  navigator.clipboard.writeText(code.textContent.trim()).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
