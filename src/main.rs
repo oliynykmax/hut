@@ -1654,14 +1654,22 @@ async fn cmd_fmt(check: bool) -> HutResult<()> {
     let project_root = find_project_root()?;
     let (config, _config_path) = HutConfig::find()?;
 
-    let sources = hut::builder::collect_sources(&config, &project_root)
-        .unwrap_or_else(|_| Vec::new());
+    let sources =
+        hut::builder::collect_sources(&config, &project_root).unwrap_or_else(|_| Vec::new());
 
     let mut files: Vec<PathBuf> = sources
         .into_iter()
         .filter(|f| {
             f.extension()
-                .map(|e| e == "c" || e == "h" || e == "cpp" || e == "hpp" || e == "cc" || e == "cxx" || e == "hxx")
+                .map(|e| {
+                    e == "c"
+                        || e == "h"
+                        || e == "cpp"
+                        || e == "hpp"
+                        || e == "cc"
+                        || e == "cxx"
+                        || e == "hxx"
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -1733,11 +1741,7 @@ async fn cmd_fmt(check: bool) -> HutResult<()> {
                 println!("  {} failed", "✗".red());
             }
         }
-        println!(
-            "{} Formatted {} file(s).",
-            "✓".green(),
-            files.len()
-        );
+        println!("{} Formatted {} file(s).", "✓".green(), files.len());
     }
 
     Ok(())
@@ -1787,9 +1791,7 @@ async fn cmd_lint() -> HutResult<()> {
             "{} clang-tidy not found — using compiler warnings instead.",
             "info:".dimmed()
         );
-        println!(
-            "   Install clang-tidy: sudo apt install clang-tidy"
-        );
+        println!("   Install clang-tidy: sudo apt install clang-tidy");
         println!();
 
         for src in &sources {
@@ -1815,11 +1817,7 @@ async fn cmd_lint() -> HutResult<()> {
         }
     }
 
-    println!(
-        "{} Linted {} source file(s).",
-        "✓".green(),
-        sources.len()
-    );
+    println!("{} Linted {} source file(s).", "✓".green(), sources.len());
     Ok(())
 }
 

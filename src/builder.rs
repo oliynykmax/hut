@@ -249,6 +249,22 @@ fn source_to_object(source: &Path, project_root: &Path, release: bool) -> PathBu
     obj
 }
 
+/// Check if an object artifact is newer than its source file (no recompilation needed).
+fn is_object_fresh(source: &Path, object: &Path) -> bool {
+    if !object.exists() {
+        return false;
+    }
+    let src_modified = match std::fs::metadata(source).and_then(|m| m.modified()) {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+    let obj_modified = match std::fs::metadata(object).and_then(|m| m.modified()) {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+    obj_modified >= src_modified
+}
+
 /// Number of parallel jobs to use (based on available CPUs)
 fn parallel_jobs() -> usize {
     std::thread::available_parallelism()
@@ -436,14 +452,35 @@ async fn build_hut(
     // Determine if this is C++
     let is_cpp = matches!(config.package.language.as_str(), "c++" | "cpp");
 
-    // Compile all source files in parallel
+    // Determine which files need recompilation (check .o freshness)
+    let mut fresh_files = Vec::new();
+    let mut stale_sources = Vec::new();
+
+    for source in &sources {
+        let obj_path = source_to_object(source, project_root, release);
+        if is_object_fresh(source, &obj_path) {
+            fresh_files.push(obj_path);
+        } else {
+            stale_sources.push(source.clone());
+        }
+    }
+
+    if !fresh_files.is_empty() {
+        println!(
+            "{} {} file(s) cached (unchanged)",
+            "   Cached".bold().dimmed(),
+            fresh_files.len()
+        );
+    }
+
+    // Compile stale source files in parallel
     let parallel_jobs = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
     let semaphore = Arc::new(Semaphore::new(parallel_jobs));
     let mut compile_handles = Vec::new();
 
-    for source in &sources {
+    for source in &stale_sources {
         // Per-file compiler selection: .c → always cc, .cpp → always cxx,
         // ambiguous extensions (.h, etc.) → fall back to project language.
         let is_cpp_file = if is_c_file(source) {
@@ -537,7 +574,8 @@ async fn build_hut(
     }
 
     // Await all compilations
-    let mut object_files: Vec<PathBuf> = Vec::new();
+    let fresh_count = fresh_files.len();
+    let mut object_files: Vec<PathBuf> = fresh_files; // pre-load cached .o files
     for handle in compile_handles {
         match handle.await {
             Ok(Ok(obj)) => object_files.push(obj),
@@ -550,43 +588,36 @@ async fn build_hut(
         }
     }
 
-    // Link step
-    // Check if this project is a library or executable (default to executable)
-    let is_library = false; // TODO: detect from config
-    let linking_label = if is_library {
+    // Check if the target binary is also fresh (no recompilation needed, no link needed)
+    let linking_label = if false {
+        // TODO: detect from config
         format!("lib{target_name}.a")
     } else {
         target_name.clone()
     };
     let output_path = out_dir.join(&linking_label);
 
+    if fresh_count == sources.len() && output_path.exists() {
+        // All sources cached AND binary exists — check if binary is newer than all sources
+        let binary_fresh = sources.iter().all(|s| is_object_fresh(s, &output_path));
+        if binary_fresh {
+            println!(
+                "{} target(s) unchanged — nothing to do",
+                "   Skipped".bold().dimmed()
+            );
+            return Ok(());
+        }
+    }
+
+    // Link step
     println!(
         "{} {}",
         "    Linking".bold().yellow(),
         linking_label.dimmed()
     );
 
-    if is_library {
-        // Create static library with ar
-        let mut ar_cmd = Command::new(&compiler.ar);
-        ar_cmd.arg("rcs");
-        ar_cmd.arg(&output_path);
-        for obj in &object_files {
-            ar_cmd.arg(obj);
-        }
-        let ar_output = ar_cmd
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .map_err(|e| HutError::Build(format!("Failed to run ar: {e}")))?;
-
-        if !ar_output.status.success() {
-            let stderr = String::from_utf8_lossy(&ar_output.stderr);
-            return Err(HutError::Build(format!(
-                "Archive creation failed:\n{stderr}"
-            )));
-        }
-    } else {
+    {
+        // TODO: detect library type from config
         // Link executable
         let linker_exe = if sources.iter().any(|s| is_cpp_file(s)) {
             &compiler.cxx

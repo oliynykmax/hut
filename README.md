@@ -277,26 +277,26 @@ This ensures header-only libraries are tracked for rebuilds and properly include
 | 50    | 0.297s | 0.827s | **2.78×** |
 | 100   | 0.568s | 1.603s | **2.82×** |
 
-hut parallelizes compilation across all cores, giving a consistent **~2.8× speedup** over sequential gcc on cold builds.
+hut parallelizes compilation across all cores, matching `make -j$(nproc)` on cold builds.
 
 ### Compilation Speed — Hot Build (incremental, 1 file changed)
 
-| Files | hut | gcc (changed-file only) |
-|-------|-----|--------------------------|
-| 10    | 0.107s | 0.042s |
-| 50    | 0.297s | 0.045s |
-| 100   | 0.564s | 0.051s |
+| Files | hut | make -j$(nproc) | Ratio |
+|-------|-----|------------------|-------|
+| 10    | 0.044s | 0.040s | 1.10× |
+| 50    | 0.050s | 0.044s | 1.14× |
+| 100   | 0.057s | 0.050s | 1.14× |
 
-> **Note:** The current hut hot-build path still performs a full relink. Incremental compilation with true object-file caching is on the roadmap.
+hut now uses `.o` caching — only changed files are recompiled. The remaining ~10% gap is the link step.
 
 ### Runtime Performance — fib(45)
 
 | Compiler | Time | Notes |
 |----------|------|-------|
-| hut (`--release`, `-O2`) | 2.473s | Identical generated code |
-| gcc `-O2` | 2.494s | Baseline |
+| hut (`--release`, `-O2`) | 2.434s | Identical generated code |
+| gcc `-O2` | 2.428s | Baseline |
 
-Both produce identical machine code — hut doesn't add any runtime overhead.
+Both produce identical machine code — hut adds zero runtime overhead.
 
 > *Run `./benchmarks/bench.sh` to generate fresh numbers on your system.*
 
