@@ -869,15 +869,7 @@ fn cmd_run(
             combined_source.push('\n');
         }
 
-        // ── Debug / release flags ─────────────────────────────────────
-        if release {
-            tcc.set_options("-DNDEBUG -O2")
-                .map_err(|e| HutError::Other(format!("JIT options failed: {e}")))?;
-        } else {
-            tcc.set_options("-g -O0")
-                .map_err(|e| HutError::Other(format!("JIT options failed: {e}")))?;
-        }
-
+        // ── Compile all source files ────────────────────────────────────
         tcc.compile(&combined_source)
             .map_err(|e| HutError::Other(format!("JIT compilation failed: {e}")))?;
 
