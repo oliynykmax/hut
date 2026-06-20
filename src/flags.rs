@@ -216,7 +216,9 @@ pub fn collect_flags(
 /// Deduplicate a vector while preserving insertion order.
 fn dedup_ordered<T: Eq + std::hash::Hash + Clone>(v: Vec<T>) -> Vec<T> {
     let mut seen = HashSet::new();
-    v.into_iter().filter(|item| seen.insert(item.clone())).collect()
+    v.into_iter()
+        .filter(|item| seen.insert(item.clone()))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +243,8 @@ fn is_cpp_source(path: &std::path::Path) -> Option<bool> {
 fn normalize_std(std: &str, is_cpp: bool) -> String {
     let s = std.trim();
     // Already fully qualified
-    if s.starts_with("c++") || s.starts_with("gnu++") || s.starts_with("c") || s.starts_with("gnu") {
+    if s.starts_with("c++") || s.starts_with("gnu++") || s.starts_with("c") || s.starts_with("gnu")
+    {
         if s.starts_with("gnu") && is_cpp && !s.contains("++") {
             // "gnu17" in C++ context → "gnu++17"
             return format!("gnu++{}", &s[3..]);
@@ -265,8 +268,8 @@ mod tests {
     use super::*;
     use crate::config::{HutConfig, PackageMeta, WorkspaceConfig};
     use crate::package::{BuildConfig, PlatformBuildConfig, ResolvedDependency};
-    use std::path::Path;
     use std::collections::BTreeMap;
+    use std::path::Path;
     use tempfile::TempDir;
 
     fn make_basic_config() -> HutConfig {
@@ -292,7 +295,12 @@ mod tests {
         }
     }
 
-    fn make_dep(name: &str, path: &std::path::Path, cflags: Vec<String>, ldflags: Vec<String>) -> ResolvedDependency {
+    fn make_dep(
+        name: &str,
+        path: &std::path::Path,
+        cflags: Vec<String>,
+        ldflags: Vec<String>,
+    ) -> ResolvedDependency {
         ResolvedDependency {
             name: name.into(),
             version: "1.0.0".into(),
@@ -441,15 +449,9 @@ mod tests {
     #[test]
     fn test_defines() {
         let mut cfg = make_basic_config();
-        cfg.build
-            .defines
-            .insert("DEBUG".into(), "1".into());
-        cfg.build
-            .defines
-            .insert("VERSION".into(), "2.0".into());
-        cfg.build
-            .defines
-            .insert("FEATURE_X".into(), "".into());
+        cfg.build.defines.insert("DEBUG".into(), "1".into());
+        cfg.build.defines.insert("VERSION".into(), "2.0".into());
+        cfg.build.defines.insert("FEATURE_X".into(), "".into());
         let src = std::path::Path::new("src/main.c");
         let flags = collect_flags(&cfg, &[], "testproj", &[], src, false);
         assert!(flags.cflags.iter().any(|f| f == "-DDEBUG=1"));

@@ -164,17 +164,29 @@ test = "make test"
         let config: HutConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.package.name, "fullproject");
         assert_eq!(config.package.version, "2.0.0");
-        assert_eq!(config.package.description, Some("A full-featured project".to_string()));
+        assert_eq!(
+            config.package.description,
+            Some("A full-featured project".to_string())
+        );
         assert_eq!(config.package.authors, vec!["Alice", "Bob"]);
         assert_eq!(config.package.license, Some("Apache-2.0".to_string()));
         assert_eq!(config.package.language, "c++");
-        assert_eq!(config.package.repository, Some("https://github.com/example/fullproject".to_string()));
+        assert_eq!(
+            config.package.repository,
+            Some("https://github.com/example/fullproject".to_string())
+        );
         assert_eq!(config.package.sources, vec!["src/main.cpp", "src/util.cpp"]);
-        assert_eq!(config.package.includes, vec!["include", "third_party/include"]);
+        assert_eq!(
+            config.package.includes,
+            vec!["include", "third_party/include"]
+        );
 
         assert_eq!(config.dependencies.get("libfoo").unwrap(), "^1.0");
         assert_eq!(config.dependencies.get("libbar").unwrap(), ">=2.0, <3.0");
-        assert_eq!(config.build_dependencies.get("cmake-utils").unwrap(), "~0.5");
+        assert_eq!(
+            config.build_dependencies.get("cmake-utils").unwrap(),
+            "~0.5"
+        );
         assert_eq!(config.test_dependencies.get("catch2").unwrap(), "*");
 
         assert_eq!(config.build.system, "cmake");
@@ -195,7 +207,8 @@ test = "make test"
 
     #[test]
     fn parse_missing_package_section() {
-        let result: Result<HutConfig, toml::de::Error> = toml::from_str("[dependencies]\nfoo = \"1.0\"");
+        let result: Result<HutConfig, toml::de::Error> =
+            toml::from_str("[dependencies]\nfoo = \"1.0\"");
         assert!(result.is_err());
     }
 
@@ -212,9 +225,15 @@ test = "make test"
     fn save_and_load_roundtrip() {
         let mut config = HutConfig::default_template("testproj");
         config.package.description = Some("A test project".to_string());
-        config.dependencies.insert("libfoo".to_string(), "^1.0".to_string());
-        config.build_dependencies.insert("cmake".to_string(), "*".to_string());
-        config.scripts.insert("build".to_string(), "make".to_string());
+        config
+            .dependencies
+            .insert("libfoo".to_string(), "^1.0".to_string());
+        config
+            .build_dependencies
+            .insert("cmake".to_string(), "*".to_string());
+        config
+            .scripts
+            .insert("build".to_string(), "make".to_string());
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hut.toml");
@@ -224,7 +243,10 @@ test = "make test"
 
         let loaded = HutConfig::load(&path).unwrap();
         assert_eq!(loaded.package.name, "testproj");
-        assert_eq!(loaded.package.description, Some("A test project".to_string()));
+        assert_eq!(
+            loaded.package.description,
+            Some("A test project".to_string())
+        );
         assert_eq!(loaded.dependencies.get("libfoo").unwrap(), "^1.0");
         assert_eq!(loaded.build_dependencies.get("cmake").unwrap(), "*");
         assert_eq!(loaded.scripts.get("build").unwrap(), "make");
@@ -256,14 +278,17 @@ test = "make test"
 
     #[test]
     fn workspace_config_with_members() {
-        let config: HutConfig = toml::from_str(r#"
+        let config: HutConfig = toml::from_str(
+            r#"
 [package]
 name = "wsproj"
 version = "0.1.0"
 
 [workspace]
 members = ["liba", "libb"]
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert_eq!(config.workspace.members.len(), 2);
         assert_eq!(config.workspace.members[0], "liba");
         assert_eq!(config.workspace.members[1], "libb");
@@ -271,11 +296,14 @@ members = ["liba", "libb"]
 
     #[test]
     fn package_meta_defaults() {
-        let config: HutConfig = toml::from_str(r#"
+        let config: HutConfig = toml::from_str(
+            r#"
 [package]
 name = "min"
 version = "1.0"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert_eq!(config.package.language, "c");
         assert_eq!(config.package.includes, crate::package::default_includes());
         assert!(config.package.authors.is_empty());
@@ -284,11 +312,14 @@ version = "1.0"
 
     #[test]
     fn build_config_default_values() {
-        let config: HutConfig = toml::from_str(r#"
+        let config: HutConfig = toml::from_str(
+            r#"
 [package]
 name = "buildtest"
 version = "1.0"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert_eq!(config.build.system, "auto");
         assert_eq!(config.build.c_standard, "c17");
         assert_eq!(config.build.opt_level, "2");

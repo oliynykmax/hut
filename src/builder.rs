@@ -677,7 +677,11 @@ pub async fn build_project(
 
     let build_system = detect_build_system(config, &project_root);
 
-    let profile_color = if release { colored::Color::Yellow } else { colored::Color::BrightBlue };
+    let profile_color = if release {
+        colored::Color::Yellow
+    } else {
+        colored::Color::BrightBlue
+    };
     let profile_name = if release { "release" } else { "debug" };
     let build_start = std::time::Instant::now();
 
@@ -977,7 +981,10 @@ mod tests {
 
     #[test]
     fn test_infer_cxx_custom_clang_suffix() {
-        assert_eq!(infer_cxx("x86_64-linux-gnu-clang"), "x86_64-linux-gnu-clang++");
+        assert_eq!(
+            infer_cxx("x86_64-linux-gnu-clang"),
+            "x86_64-linux-gnu-clang++"
+        );
     }
 
     #[test]
@@ -1012,10 +1019,7 @@ mod tests {
         let mut config = make_test_config("proj");
         config.build.system = "cmake".into();
         let tmp = TempDir::new().unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Cmake
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Cmake);
     }
 
     #[test]
@@ -1023,10 +1027,7 @@ mod tests {
         let mut config = make_test_config("proj");
         config.build.system = "make".into();
         let tmp = TempDir::new().unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Make
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
     }
 
     #[test]
@@ -1034,10 +1035,7 @@ mod tests {
         let mut config = make_test_config("proj");
         config.build.system = "hut".into();
         let tmp = TempDir::new().unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Hut
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Hut);
     }
 
     #[test]
@@ -1045,10 +1043,7 @@ mod tests {
         let config = make_test_config("proj");
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("CMakeLists.txt"), "").unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Cmake
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Cmake);
     }
 
     #[test]
@@ -1056,10 +1051,7 @@ mod tests {
         let config = make_test_config("proj");
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("Makefile"), "").unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Make
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
     }
 
     #[test]
@@ -1067,10 +1059,7 @@ mod tests {
         let config = make_test_config("proj");
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("GNUmakefile"), "").unwrap();
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Make
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Make);
     }
 
     #[test]
@@ -1078,10 +1067,7 @@ mod tests {
         let config = make_test_config("proj");
         let tmp = TempDir::new().unwrap();
         // No CMakeLists.txt, no Makefile → defaults to Hut
-        assert_eq!(
-            detect_build_system(&config, tmp.path()),
-            BuildSystem::Hut
-        );
+        assert_eq!(detect_build_system(&config, tmp.path()), BuildSystem::Hut);
     }
 
     // -----------------------------------------------------------------------
@@ -1093,8 +1079,10 @@ mod tests {
         let ar = detect_ar();
         assert!(!ar.is_empty());
         // Should be "ar" or "llvm-ar"
-        assert!(ar == "ar" || ar == "llvm-ar",
-            "Expected 'ar' or 'llvm-ar', got '{ar}'");
+        assert!(
+            ar == "ar" || ar == "llvm-ar",
+            "Expected 'ar' or 'llvm-ar', got '{ar}'"
+        );
     }
 
     // -----------------------------------------------------------------------

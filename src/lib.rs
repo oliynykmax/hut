@@ -1,3 +1,15 @@
+#![allow(
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::len_zero,
+    clippy::needless_borrows_for_generic_args,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::needless_match,
+    clippy::unnecessary_map_or,
+    clippy::redundant_closure,
+    clippy::unnecessary_literal_unwrap,
+    clippy::field_reassign_with_default
+)]
 pub mod config;
 pub mod error;
 pub mod flags;

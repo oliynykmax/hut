@@ -4,10 +4,10 @@
 // Falls back gracefully if libtcc is not installed — `hut run --jit` will
 // print a helpful message asking the user to install TCC.
 
-use std::ffi::{c_char, c_int, c_void, CString};
+use std::ffi::{CString, c_char, c_int, c_void};
 use std::path::Path;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 // ── TCC constants ──────────────────────────────────────────────────────────
 
@@ -85,8 +85,7 @@ impl Tcc {
                 std::mem::transmute_copy(&sym)
             };
             let set_options: TccSetOptionsFn = {
-                let sym: libloading::Symbol<TccSetOptionsFn> =
-                    lib.get(b"tcc_set_options").ok()?;
+                let sym: libloading::Symbol<TccSetOptionsFn> = lib.get(b"tcc_set_options").ok()?;
                 std::mem::transmute_copy(&sym)
             };
             let relocate: TccRelocateFn = {
@@ -156,11 +155,7 @@ impl Tcc {
     pub fn get_symbol(&self, name: &str) -> Option<*mut c_void> {
         let c_name = CString::new(name).ok()?;
         let ptr = unsafe { (self.get_symbol)(self.state, c_name.as_ptr()) };
-        if ptr.is_null() {
-            None
-        } else {
-            Some(ptr)
-        }
+        if ptr.is_null() { None } else { Some(ptr) }
     }
 
     /// Run the compiled code by calling `main(argc, argv)`.
@@ -295,7 +290,8 @@ int add(int a, int b) { return a + b; }
             }
         };
 
-        tcc.set_options("-g -O0").expect("debug options should be accepted");
+        tcc.set_options("-g -O0")
+            .expect("debug options should be accepted");
     }
 
     #[test]
@@ -308,7 +304,8 @@ int add(int a, int b) { return a + b; }
             }
         };
 
-        tcc.set_options("-DNDEBUG -O2").expect("release options should be accepted");
+        tcc.set_options("-DNDEBUG -O2")
+            .expect("release options should be accepted");
     }
 
     #[test]
@@ -357,7 +354,10 @@ int add(int a, int b) { return a + b; }
         tcc.relocate().expect("relocate should succeed");
 
         let sym = tcc.get_symbol("answer");
-        assert!(sym.is_some(), "symbol 'answer' should be found after relocation");
+        assert!(
+            sym.is_some(),
+            "symbol 'answer' should be found after relocation"
+        );
     }
 
     #[test]
@@ -399,11 +399,7 @@ int main(int argc, char** argv) {
         tcc.compile(source).expect("compile should succeed");
         tcc.relocate().expect("relocate should succeed");
 
-        let args: Vec<String> = vec![
-            "prog".into(),
-            "arg1".into(),
-            "arg2".into(),
-        ];
+        let args: Vec<String> = vec!["prog".into(), "arg1".into(), "arg2".into()];
         let code = tcc.run_main(&args).expect("run_main should succeed");
         assert_eq!(code, 2, "exit code should be argc-1 = 2");
     }

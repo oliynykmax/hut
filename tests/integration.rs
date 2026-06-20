@@ -657,9 +657,7 @@ int main(void) {
     let exe = proj.join("target").join("debug").join("flagproj");
     assert!(exe.exists(), "Binary not produced");
 
-    let run_out = Command::new(&exe)
-        .output()
-        .expect("failed to run binary");
+    let run_out = Command::new(&exe).output().expect("failed to run binary");
     assert!(run_out.status.success(), "binary failed to run");
     let run_stdout = String::from_utf8_lossy(&run_out.stdout);
     assert!(
@@ -733,9 +731,7 @@ int main(void) {
     assert!(exe.exists(), "Binary not produced");
 
     // Run and verify the define was passed
-    let run_out = Command::new(&exe)
-        .output()
-        .expect("failed to run binary");
+    let run_out = Command::new(&exe).output().expect("failed to run binary");
     assert!(run_out.status.success(), "binary failed to run");
     let run_stdout = String::from_utf8_lossy(&run_out.stdout);
     assert!(

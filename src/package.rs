@@ -281,7 +281,10 @@ mod tests {
         assert_eq!(pkg.description, Some("A test library".into()));
         assert_eq!(pkg.authors, vec!["Alice", "Bob"]);
         assert_eq!(pkg.license, None);
-        assert_eq!(pkg.repository, Some("https://github.com/example/testlib".into()));
+        assert_eq!(
+            pkg.repository,
+            Some("https://github.com/example/testlib".into())
+        );
         assert_eq!(pkg.homepage, Some("https://example.com/testlib".into()));
         assert_eq!(pkg.sources, vec!["src"]);
         assert_eq!(pkg.includes, vec!["include"]);
@@ -454,7 +457,10 @@ framework = "unity"
         assert_eq!(pkg.description, Some("Full featured package".into()));
         assert_eq!(pkg.authors, vec!["Dev1", "Dev2"]);
         assert_eq!(pkg.license, Some("Apache-2.0".into()));
-        assert_eq!(pkg.repository, Some("https://github.com/example/fullpkg".into()));
+        assert_eq!(
+            pkg.repository,
+            Some("https://github.com/example/fullpkg".into())
+        );
         assert_eq!(pkg.homepage, Some("https://fullpkg.dev".into()));
         assert_eq!(pkg.sources, vec!["src", "lib"]);
         assert_eq!(pkg.includes, vec!["include", "third_party/include"]);
@@ -539,12 +545,8 @@ framework = "unity"
             version: "1.2.3".into(),
             path: std::path::PathBuf::from("/home/user/.hut/testlib"),
             package: pkg,
-            include_paths: vec![
-                std::path::PathBuf::from("/home/user/.hut/testlib/include"),
-            ],
-            library_paths: vec![
-                std::path::PathBuf::from("/home/user/.hut/testlib/lib"),
-            ],
+            include_paths: vec![std::path::PathBuf::from("/home/user/.hut/testlib/include")],
+            library_paths: vec![std::path::PathBuf::from("/home/user/.hut/testlib/lib")],
             link_libraries: vec!["m".into(), "pthread".into()],
             cflags: vec!["-DFROM_DEP".into(), "-pthread".into()],
             ldflags: vec!["-ldl".into()],

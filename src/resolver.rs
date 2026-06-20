@@ -523,7 +523,11 @@ mod tests {
 
     #[test]
     fn dedup_strings() {
-        let v = vec!["hello".to_string(), "world".to_string(), "hello".to_string()];
+        let v = vec![
+            "hello".to_string(),
+            "world".to_string(),
+            "hello".to_string(),
+        ];
         assert_eq!(dedup_vec(v), vec!["hello".to_string(), "world".to_string()]);
     }
 

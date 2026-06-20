@@ -2,12 +2,20 @@
 //
 // CLI binary using clap derive.  All heavy lifting is performed by the
 // library modules under `hut::`.
+#![allow(
+    clippy::collapsible_if,
+    clippy::single_match,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::needless_match,
+    clippy::unnecessary_map_or,
+    clippy::redundant_closure
+)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use clap::{CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use colored::Colorize;
 
 use hut::config::HutConfig;
@@ -250,12 +258,22 @@ async fn main() {
         Commands::Init { name } => cmd_init(name).await,
         Commands::Create { template } => cmd_create(&template).await,
         Commands::Install { registry } => cmd_install(registry.as_deref()).await,
-        Commands::Add { pkg, dev, build, registry } => cmd_add(&pkg, dev, build, registry.as_deref()).await,
+        Commands::Add {
+            pkg,
+            dev,
+            build,
+            registry,
+        } => cmd_add(&pkg, dev, build, registry.as_deref()).await,
         Commands::Remove { pkg } => cmd_remove(&pkg).await,
         Commands::Update { pkg } => cmd_update(pkg.as_deref()).await,
         Commands::Outdated => cmd_outdated().await,
         Commands::Build { release, compiler } => cmd_build(release, compiler.as_deref()).await,
-        Commands::Run { target, args, release, jit } => cmd_run(target, args, release, jit).await,
+        Commands::Run {
+            target,
+            args,
+            release,
+            jit,
+        } => cmd_run(target, args, release, jit).await,
         Commands::Test => cmd_test().await,
         Commands::X { pkg, args } => cmd_x(&pkg, &args).await,
         Commands::Link { path } => cmd_link(path.as_deref()).await,
@@ -483,7 +501,12 @@ async fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
 }
 
 /// 4. `hut add <pkg> [--dev] [--build]`
-async fn cmd_add(pkg_spec: &str, dev: bool, build: bool, registry_url: Option<&str>) -> HutResult<()> {
+async fn cmd_add(
+    pkg_spec: &str,
+    dev: bool,
+    build: bool,
+    registry_url: Option<&str>,
+) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
 
     // Parse package name and optional version constraint
@@ -554,11 +577,7 @@ async fn cmd_add(pkg_spec: &str, dev: bool, build: bool, registry_url: Option<&s
     // Fetch + install
     hut::fetcher::install_dependencies(&config, &lockfile, &cache).await?;
 
-    println!(
-        "{} installed {}",
-        "Done".green().bold(),
-        name.bold()
-    );
+    println!("{} installed {}", "Done".green().bold(), name.bold());
 
     Ok(())
 }
@@ -669,10 +688,7 @@ async fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
     let cache = cache_dir();
     hut::fetcher::install_dependencies(&config, &lockfile, &cache).await?;
 
-    println!(
-        "{} dependencies updated.",
-        "Updated".green().bold()
-    );
+    println!("{} dependencies updated.", "Updated".green().bold());
 
     Ok(())
 }
@@ -692,9 +708,9 @@ async fn cmd_outdated() -> HutResult<()> {
         .chain(config.build_dependencies.iter())
         .chain(config.test_dependencies.iter())
     {
-        let current = lockfile.get(&name).map(|l| l.version.as_str());
+        let current = lockfile.get(name).map(|l| l.version.as_str());
 
-        if let Some(entry) = registry.find(&name) {
+        if let Some(entry) = registry.find(name) {
             let latest = match hut::registry::resolve_version(entry, constraint) {
                 Ok(v) => v,
                 Err(_) => continue,
@@ -765,16 +781,17 @@ async fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<
                     let mut line = String::new();
                     if stdin.lock().read_line(&mut line).is_ok() {
                         let trimmed = line.trim();
-                        if let Ok(idx) = trimmed.parse::<usize>() {
-                            if idx >= 1 && idx <= available.len() {
-                                let chosen = &available[idx - 1];
-                                config.build.compiler = chosen.clone();
-                                println!(
-                                    "{} Selected {} → saved to hut.toml",
-                                    "✓".green().bold(),
-                                    chosen.bold()
-                                );
-                            }
+                        if let Ok(idx) = trimmed.parse::<usize>()
+                            && idx >= 1
+                            && idx <= available.len()
+                        {
+                            let chosen = &available[idx - 1];
+                            config.build.compiler = chosen.clone();
+                            println!(
+                                "{} Selected {} → saved to hut.toml",
+                                "✓".green().bold(),
+                                chosen.bold()
+                            );
                         }
                     }
                 } else {
@@ -930,7 +947,11 @@ async fn cmd_run(
     if !binary.exists() {
         // Maybe it's a script?
         if let Some(script) = config.scripts.get(target_name) {
-            println!("{} {}", "Running script:".bold().dimmed(), target_name.bold());
+            println!(
+                "{} {}",
+                "Running script:".bold().dimmed(),
+                target_name.bold()
+            );
             let shell = if cfg!(windows) { "cmd" } else { "sh" };
             let shell_arg = if cfg!(windows) { "/C" } else { "-c" };
 
@@ -992,7 +1013,11 @@ async fn cmd_test() -> HutResult<()> {
     hut::builder::build_project(&config, &resolved, false).await?;
 
     println!();
-    println!("{} {}", "✓".green().bold(), "Build succeeded (test runner not yet implemented)".dimmed());
+    println!(
+        "{} {}",
+        "✓".green().bold(),
+        "Build succeeded (test runner not yet implemented)".dimmed()
+    );
 
     Ok(())
 }
@@ -1005,7 +1030,7 @@ async fn cmd_x(pkg: &str, args: &[String]) -> HutResult<()> {
 /// 12. `hut link [path]`
 async fn cmd_link(path: Option<&str>) -> HutResult<()> {
     let link_path = path
-        .map(|p| PathBuf::from(p))
+        .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
     let link_path = std::fs::canonicalize(&link_path)
@@ -1068,11 +1093,7 @@ async fn cmd_unlink(pkg: &str) -> HutResult<()> {
     }
 
     std::fs::remove_file(&link_target)?;
-    println!(
-        "{} {} unlinked.",
-        "Unlinked".green().bold(),
-        pkg.bold()
-    );
+    println!("{} {} unlinked.", "Unlinked".green().bold(), pkg.bold());
 
     Ok(())
 }
@@ -1095,10 +1116,7 @@ async fn cmd_publish() -> HutResult<()> {
     println!("  2. Tag a release using git tags matching semver:");
     println!("     {}", "$ git tag v0.1.0 && git push --tags".dimmed());
     println!("  3. Register your package by submitting a PR to:");
-    println!(
-        "     {}",
-        "https://github.com/hutpm/registry".underline()
-    );
+    println!("     {}", "https://github.com/hutpm/registry".underline());
     println!("     Add your package to the registry index.");
     println!();
     println!("  Your hut.toml must include:");
@@ -1133,24 +1151,24 @@ async fn cmd_pm(sub: PmCommand) -> HutResult<()> {
             if let Ok(entries) = std::fs::read_dir(&cache) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_dir() {
-                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                            if name.starts_with('.') {
-                                continue;
-                            }
-                            print!("  {}", name.bold());
-                            // List versions
-                            if let Ok(versions) = std::fs::read_dir(&path) {
-                                let vlist: Vec<_> = versions
-                                    .flatten()
-                                    .filter(|e| e.path().is_dir())
-                                    .map(|e| e.file_name().to_string_lossy().to_string())
-                                    .collect();
-                                if !vlist.is_empty() {
-                                    println!("  ({})", vlist.join(", ").dimmed());
-                                } else {
-                                    println!();
-                                }
+                    if path.is_dir()
+                        && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                    {
+                        if name.starts_with('.') {
+                            continue;
+                        }
+                        print!("  {}", name.bold());
+                        // List versions
+                        if let Ok(versions) = std::fs::read_dir(&path) {
+                            let vlist: Vec<_> = versions
+                                .flatten()
+                                .filter(|e| e.path().is_dir())
+                                .map(|e| e.file_name().to_string_lossy().to_string())
+                                .collect();
+                            if !vlist.is_empty() {
+                                println!("  ({})", vlist.join(", ").dimmed());
+                            } else {
+                                println!();
                             }
                         }
                     }
@@ -1180,7 +1198,10 @@ async fn cmd_upgrade() -> HutResult<()> {
     let source_dir = find_hut_source();
 
     let Some(src_dir) = source_dir else {
-        eprintln!("{} Could not find hut's source directory.", "error:".red().bold());
+        eprintln!(
+            "{} Could not find hut's source directory.",
+            "error:".red().bold()
+        );
         eprintln!("       Install via git and rebuild:");
         eprintln!("         git clone git@github.com:oliynykmax/hut.git ~/.hut");
         eprintln!("         cd ~/.hut && cargo build --release");
@@ -1197,7 +1218,10 @@ async fn cmd_upgrade() -> HutResult<()> {
 
     if !pull.status.success() {
         let stderr = String::from_utf8_lossy(&pull.stderr);
-        return Err(HutError::Other(format!("git pull failed: {}", stderr.trim())));
+        return Err(HutError::Other(format!(
+            "git pull failed: {}",
+            stderr.trim()
+        )));
     }
 
     let new_version = get_hut_version(&src_dir)?;
@@ -1211,11 +1235,7 @@ async fn cmd_upgrade() -> HutResult<()> {
         return Ok(());
     }
 
-    println!(
-        "{} Building hut v{}...",
-        "→".dimmed(),
-        new_version
-    );
+    println!("{} Building hut v{}...", "→".dimmed(), new_version);
     let build = Command::new("cargo")
         .args(["build", "--release", "--manifest-path"])
         .arg(src_dir.join("Cargo.toml"))
@@ -1263,10 +1283,10 @@ fn get_hut_version(source_dir: &Path) -> HutResult<String> {
     let cargo_toml = source_dir.join("Cargo.toml");
     let content = std::fs::read_to_string(&cargo_toml)?;
     for line in content.lines() {
-        if let Some(ver) = line.trim().strip_prefix("version = \"") {
-            if let Some(end) = ver.find('"') {
-                return Ok(ver[..end].to_string());
-            }
+        if let Some(ver) = line.trim().strip_prefix("version = \"")
+            && let Some(end) = ver.find('"')
+        {
+            return Ok(ver[..end].to_string());
         }
     }
     Err(HutError::Other(
@@ -1287,13 +1307,8 @@ async fn cmd_patch(pkg: &str) -> HutResult<()> {
     })?;
 
     let cache = cache_dir();
-    let pkg_dir = hut::fetcher::fetch_package(
-        pkg,
-        &locked.resolved,
-        &locked.version,
-        &cache,
-    )
-    .await?;
+    let pkg_dir =
+        hut::fetcher::fetch_package(pkg, &locked.resolved, &locked.version, &cache).await?;
 
     println!("{}", "Patch mode:".bold().underline());
     println!();
@@ -1305,10 +1320,7 @@ async fn cmd_patch(pkg: &str) -> HutResult<()> {
     println!("  {}", pkg_dir.display().to_string().dimmed());
     println!();
     println!("  To apply a local patch:");
-    println!(
-        "  1. Make your changes in: {}",
-        pkg_dir.display()
-    );
+    println!("  1. Make your changes in: {}", pkg_dir.display());
     println!("  2. To use the patched version, run:");
     println!(
         "     {}",
@@ -1328,10 +1340,7 @@ async fn cmd_info() -> HutResult<()> {
     println!();
     println!("  name: {}", config.package.name.bold());
     println!("  version: {}", config.package.version);
-    println!(
-        "  language: {}",
-        config.package.language
-    );
+    println!("  language: {}", config.package.language);
     if let Some(ref desc) = config.package.description {
         println!("  description: {}", desc);
     }
@@ -1440,13 +1449,12 @@ async fn cmd_dev() -> HutResult<()> {
             });
 
         for entry in walker {
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(mod_time) = meta.modified() {
-                    if mod_time > last_build {
-                        files_changed = true;
-                        break;
-                    }
-                }
+            if let Ok(meta) = entry.metadata()
+                && let Ok(mod_time) = meta.modified()
+                && mod_time > last_build
+            {
+                files_changed = true;
+                break;
             }
         }
 
@@ -1483,10 +1491,7 @@ async fn cmd_workspace(sub: WorkspaceCommand) -> HutResult<()> {
                 .to_string();
 
             if config.workspace.members.contains(&relative) {
-                println!(
-                    "{} Already a workspace member.",
-                    "info:".cyan().bold()
-                );
+                println!("{} Already a workspace member.", "info:".cyan().bold());
                 return Ok(());
             }
 
@@ -1613,7 +1618,11 @@ async fn cmd_search(query: &str) -> HutResult<()> {
             println!();
         }
         if !entry.tags.is_empty() {
-            println!("    {} {}", "Tags:".dimmed(), entry.tags.join(", ").dimmed());
+            println!(
+                "    {} {}",
+                "Tags:".dimmed(),
+                entry.tags.join(", ").dimmed()
+            );
         }
         println!("    {}", entry.repository.dimmed());
         println!();
@@ -1810,9 +1819,12 @@ mod tests {
 
     #[test]
     fn test_alias_i_with_registry() {
-        let cli = Cli::try_parse_from(["hut", "i", "--registry", "https://reg.example.com"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["hut", "i", "--registry", "https://reg.example.com"]).unwrap();
         match cli.command {
-            Commands::Install { registry } => assert_eq!(registry, Some("https://reg.example.com".into())),
+            Commands::Install { registry } => {
+                assert_eq!(registry, Some("https://reg.example.com".into()))
+            }
             _ => panic!("expected Install alias 'i'"),
         }
     }
@@ -1821,7 +1833,12 @@ mod tests {
     fn test_alias_a_for_add() {
         let cli = Cli::try_parse_from(["hut", "a", "user/pkg"]).unwrap();
         match cli.command {
-            Commands::Add { pkg, dev, build, registry } => {
+            Commands::Add {
+                pkg,
+                dev,
+                build,
+                registry,
+            } => {
                 assert_eq!(pkg, "user/pkg");
                 assert!(!dev);
                 assert!(!build);
@@ -1870,7 +1887,12 @@ mod tests {
     fn test_parse_run_default() {
         let cli = Cli::try_parse_from(["hut", "run"]).unwrap();
         match cli.command {
-            Commands::Run { target, args, release, jit } => {
+            Commands::Run {
+                target,
+                args,
+                release,
+                jit,
+            } => {
                 assert!(target.is_none());
                 assert!(args.is_empty());
                 assert!(!release);
@@ -1957,7 +1979,12 @@ mod tests {
     fn test_parse_add_basic() {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo"]).unwrap();
         match cli.command {
-            Commands::Add { pkg, dev, build, registry } => {
+            Commands::Add {
+                pkg,
+                dev,
+                build,
+                registry,
+            } => {
                 assert_eq!(pkg, "user/libfoo");
                 assert!(!dev);
                 assert!(!build);
@@ -1987,18 +2014,41 @@ mod tests {
 
     #[test]
     fn test_parse_add_with_registry() {
-        let cli = Cli::try_parse_from(["hut", "add", "user/pkg", "--registry", "https://r.example.com"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "hut",
+            "add",
+            "user/pkg",
+            "--registry",
+            "https://r.example.com",
+        ])
+        .unwrap();
         match cli.command {
-            Commands::Add { registry, .. } => assert_eq!(registry, Some("https://r.example.com".into())),
+            Commands::Add { registry, .. } => {
+                assert_eq!(registry, Some("https://r.example.com".into()))
+            }
             _ => panic!("expected Add"),
         }
     }
 
     #[test]
     fn test_parse_add_dev_build_registry() {
-        let cli = Cli::try_parse_from(["hut", "add", "user/pkg", "--dev", "--build", "--registry", "https://r.example.com"]).unwrap();
+        let cli = Cli::try_parse_from([
+            "hut",
+            "add",
+            "user/pkg",
+            "--dev",
+            "--build",
+            "--registry",
+            "https://r.example.com",
+        ])
+        .unwrap();
         match cli.command {
-            Commands::Add { dev, build, registry, .. } => {
+            Commands::Add {
+                dev,
+                build,
+                registry,
+                ..
+            } => {
                 assert!(dev);
                 assert!(build);
                 assert_eq!(registry, Some("https://r.example.com".into()));
@@ -2251,7 +2301,8 @@ mod tests {
 
     #[test]
     fn test_parse_workspace_run_with_args() {
-        let cli = Cli::try_parse_from(["hut", "workspace", "run", "build", "--", "--release"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["hut", "workspace", "run", "build", "--", "--release"]).unwrap();
         match cli.command {
             Commands::Workspace(sub) => match sub {
                 WorkspaceCommand::Run { command, args } => {

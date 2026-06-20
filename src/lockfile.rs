@@ -148,7 +148,8 @@ mod tests {
     fn save_and_load_roundtrip() {
         let mut lf = Lockfile::new();
         let mut pkg = make_locked_pkg("libfoo", "1.2.3");
-        pkg.dependencies.insert("libbar".to_string(), "^1.0".to_string());
+        pkg.dependencies
+            .insert("libbar".to_string(), "^1.0".to_string());
         lf.insert(pkg);
         lf.insert(make_locked_pkg("libbar", "1.0.1"));
 
@@ -193,7 +194,8 @@ mod tests {
     #[test]
     fn serialize_deserialize_json_roundtrip() {
         let mut pkg = make_locked_pkg("mypkg", "3.2.1");
-        pkg.dependencies.insert("dep".to_string(), ">=2.0".to_string());
+        pkg.dependencies
+            .insert("dep".to_string(), ">=2.0".to_string());
 
         let lf = Lockfile {
             version: 1,
@@ -226,7 +228,8 @@ mod tests {
 
     #[test]
     fn locked_package_optional_dependencies() {
-        let json = r#"{"name":"pkg","version":"1.0","source":"abc","integrity":"sha","resolved":"url"}"#;
+        let json =
+            r#"{"name":"pkg","version":"1.0","source":"abc","integrity":"sha","resolved":"url"}"#;
         let pkg: LockedPackage = serde_json::from_str(json).unwrap();
         assert!(pkg.dependencies.is_empty());
     }

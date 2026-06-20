@@ -115,10 +115,7 @@ mod tests {
     #[test]
     fn display_resolution_error() {
         let err = HutError::Resolution("conflict".to_string());
-        assert_eq!(
-            err.to_string(),
-            "Dependency resolution failed: conflict"
-        );
+        assert_eq!(err.to_string(), "Dependency resolution failed: conflict");
     }
 
     #[test]
@@ -145,10 +142,7 @@ mod tests {
     #[test]
     fn display_not_a_project() {
         let err = HutError::NotAProject;
-        assert_eq!(
-            err.to_string(),
-            "Not a hut project (no hut.toml found)"
-        );
+        assert_eq!(err.to_string(), "Not a hut project (no hut.toml found)");
     }
 
     #[test]
