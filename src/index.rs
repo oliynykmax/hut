@@ -6,6 +6,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use colored::Colorize;
+
 use crate::error::{HutError, HutResult};
 
 /// Entry for a single package in the index.
@@ -113,5 +115,128 @@ impl PackagesIndex {
             .find(name)
             .ok_or_else(|| HutError::PackageNotFound(name.to_string()))?;
         Ok(format!("https://github.com/{}.git", entry.repo))
+    }
+
+    /// Reseed ~/.config/hut/packages.toml with new entries from the built-in
+    /// index. Only appends — never removes or replaces user additions.
+    pub fn reseed_user_index() -> HutResult<()> {
+        use std::io::Write;
+
+        let config_dir = dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("hut");
+        let user_path = config_dir.join("packages.toml");
+
+        // Parse the embedded current index
+        let builtin: PackagesIndex = toml::from_str(BUILTIN_PACKAGES)
+            .map_err(|e| HutError::Other(format!("Invalid built-in packages.toml: {e}")))?;
+
+        // Parse user's local index (or empty if not yet created)
+        let user_index = if user_path.exists() {
+            Self::load(&user_path).unwrap_or_else(|_| PackagesIndex {
+                packages: BTreeMap::new(),
+            })
+        } else {
+            // No user file yet — just write the full built-in index.
+            std::fs::create_dir_all(&config_dir)?;
+            std::fs::write(&user_path, BUILTIN_PACKAGES)?;
+            return Ok(());
+        };
+
+        let mut new_count = 0;
+        let mut file = std::fs::OpenOptions::new().append(true).open(&user_path)?;
+
+        for (name, entry) in &builtin.packages {
+            if !user_index.packages.contains_key(name) {
+                writeln!(file)?;
+                write!(file, "[packages.{name}]\n")?;
+                write!(file, "repo = \"{}\"\n", entry.repo)?;
+                if !entry.description.is_empty() {
+                    write!(file, "description = \"{}\"\n", entry.description)?;
+                }
+                if !entry.includes.is_empty() {
+                    write!(
+                        file,
+                        "includes = [{}]\n",
+                        entry
+                            .includes
+                            .iter()
+                            .map(|i| format!("\"{}\"", i))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                if !entry.libs.is_empty() {
+                    write!(
+                        file,
+                        "libs = [{}]\n",
+                        entry
+                            .libs
+                            .iter()
+                            .map(|l| format!("\"{}\"", l))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                if !entry.sources.is_empty() {
+                    write!(
+                        file,
+                        "sources = [{}]\n",
+                        entry
+                            .sources
+                            .iter()
+                            .map(|s| format!("\"{}\"", s))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                if !entry.defines.is_empty() {
+                    write!(
+                        file,
+                        "defines = [{}]\n",
+                        entry
+                            .defines
+                            .iter()
+                            .map(|d| format!("\"{}\"", d))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                if !entry.cflags.is_empty() {
+                    write!(
+                        file,
+                        "cflags = [{}]\n",
+                        entry
+                            .cflags
+                            .iter()
+                            .map(|c| format!("\"{}\"", c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                if !entry.ldflags.is_empty() {
+                    write!(
+                        file,
+                        "ldflags = [{}]\n",
+                        entry
+                            .ldflags
+                            .iter()
+                            .map(|l| format!("\"{}\"", l))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )?;
+                }
+                new_count += 1;
+            }
+        }
+
+        if new_count > 0 {
+            eprintln!(
+                "{} Added {new_count} new package(s) to {}",
+                "index:".dimmed(),
+                user_path.display()
+            );
+        }
+        Ok(())
     }
 }

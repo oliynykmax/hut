@@ -1297,6 +1297,10 @@ fn cmd_upgrade() -> HutResult<()> {
         current_version,
         new_version
     );
+
+    // Reseed ~/.config/hut/packages.toml with new entries from
+    // the just-built binary's embedded index.
+    let _ = hut::index::PackagesIndex::reseed_user_index();
     Ok(())
 }
 
