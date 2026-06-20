@@ -1,0 +1,138 @@
+# hut packages index — local curated list of popular C/C++ libraries.
+# Maps package names to GitHub repos + build instructions.
+# No registry, no remote fetch. Ships with hut, user can extend it at
+# ~/.config/hut/packages.toml
+
+[packages]
+
+# ── Header-only libraries ─────────────────────────────────────────────
+
+[packages.stb]
+repo = "nothings/stb"
+description = "Single-file public domain libraries for C/C++"
+includes = ["."]
+
+[packages.cglm]
+repo = "recp/cglm"
+description = "Highly optimized graphics math (glm) for C"
+includes = ["include"]
+libs = ["cglm"]
+sources = ["src/*.c"]
+
+[packages.uthash]
+repo = "troydhanson/uthash"
+description = "C macros for hash tables, linked lists, etc."
+includes = ["src"]
+
+[packages.parson]
+repo = "kgabis/parson"
+description = "Lightweight JSON library in C"
+includes = ["."]
+sources = ["parson.c"]
+
+[packages.logc]
+repo = "rxi/logc"
+description = "Simple C logging library"
+includes = ["."]
+sources = ["log.c"]
+
+[packages.inih]
+repo = "benhoyt/inih"
+description = "Simple .INI file parser in C"
+includes = ["."]
+sources = ["ini.c"]
+
+# ── Compression / data ────────────────────────────────────────────────
+
+[packages.zlib]
+repo = "madler/zlib"
+description = "A massively spiffy yet delicately unobtrusive compression library"
+includes = ["."]
+libs = ["z"]
+sources = [
+    "adler32.c", "compress.c", "crc32.c", "deflate.c", "gzclose.c",
+    "gzlib.c", "gzread.c", "gzwrite.c", "infback.c", "inffast.c",
+    "inflate.c", "inftrees.c", "trees.c", "uncompr.c", "zutil.c"
+]
+
+[packages.zstd]
+repo = "facebook/zstd"
+description = "Zstandard — fast real-time compression"
+includes = ["lib"]
+libs = ["zstd"]
+sources = ["lib/common/*.c", "lib/compress/*.c", "lib/decompress/*.c", "lib/dictBuilder/*.c"]
+
+[packages.miniz]
+repo = "richgel999/miniz"
+description = "Single C file zlib-replacement library"
+includes = ["."]
+sources = ["miniz.c", "miniz_zip.c", "miniz_tinfl.c", "miniz_tdef.c"]
+
+[packages.cjson]
+repo = "DaveGamble/cJSON"
+description = "Ultralightweight JSON parser in ANSI C"
+includes = ["."]
+sources = ["cJSON.c"]
+
+# ── Networking ────────────────────────────────────────────────────────
+
+[packages.libhv]
+repo = "ithewei/libhv"
+description = "Like libevent, libev, and libuv — C network library"
+includes = ["."]
+libs = ["hv"]
+sources = ["base/*.c", "ssl/*.c", "event/*.c", "http/*.c", "http/client/*.c"]
+
+# ── Graphics / Audio / Games ──────────────────────────────────────────
+
+[packages.raylib]
+repo = "raysan5/raylib"
+description = "A simple and easy-to-use library to enjoy videogames programming"
+includes = ["src"]
+libs = ["raylib"]
+sources = ["src/*.c"]
+defines = ["PLATFORM_DESKTOP"]
+cflags = ["-DPLATFORM_DESKTOP"]
+
+[packages.sokol]
+repo = "floooh/sokol"
+description = "Minimal cross-platform standalone C headers"
+includes = ["."]
+
+[packages.miniaudio]
+repo = "mackron/miniaudio"
+description = "Audio playback and capture library"
+includes = ["."]
+sources = ["miniaudio.c"]
+
+[packages.stb_image]
+repo = "nothings/stb"
+description = "Image loading (header-only, subset of stb)"
+includes = ["."]
+# User defines STB_IMAGE_IMPLEMENTATION in one .c file
+
+# ── Testing ───────────────────────────────────────────────────────────
+
+[packages.utest]
+repo = "sheredom/utest.h"
+description = "Single header C unit testing framework"
+includes = ["."]
+
+[packages.greatest]
+repo = "silentbicycle/greatest"
+description = "A C testing library in 1 file. No dependencies, no dynamic allocation."
+includes = ["."]
+
+# ── Math / Scientific ─────────────────────────────────────────────────
+
+[packages.kissfft]
+repo = "mborgerding/kissfft"
+description = "A Keep It Simple, Stupid, Fast Fourier Transform"
+includes = ["."]
+sources = ["kiss_fft.c"]
+
+[packages.tinyexpr]
+repo = "codeplea/tinyexpr"
+description = "Tiny recursive descent expression parser/evaluator"
+includes = ["."]
+sources = ["tinyexpr.c"]

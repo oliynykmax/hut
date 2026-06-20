@@ -13,14 +13,14 @@
 pub mod config;
 pub mod error;
 pub mod flags;
+pub mod index;
 pub mod lockfile;
 pub mod package;
-pub mod registry;
 
-// Heavy implementation modules — to be filled by agents
-pub mod http;
+// Heavy implementation modules
 pub mod builder;
 pub mod fetcher;
+pub mod http;
 pub mod include;
 pub mod jit;
 pub mod resolver;
@@ -30,7 +30,6 @@ pub use error::{HutError, HutResult};
 pub use lockfile::Lockfile;
 pub use package::Package;
 pub use package::default_includes;
-pub use registry::RegistryIndex;
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +62,6 @@ mod tests {
 
     #[test]
     fn test_reexport_package() {
-        // Construct Package directly via struct literal (all public fields)
         let pkg = super::Package {
             name: "mypkg".into(),
             version: "0.1.0".into(),
@@ -97,19 +95,11 @@ mod tests {
     }
 
     #[test]
-    fn test_reexport_registry_index() {
-        let ri = super::RegistryIndex { packages: vec![] };
-        assert!(ri.packages.is_empty());
-    }
-
-    #[test]
     fn test_public_modules_accessible() {
-        // Verify all public modules are accessible at the crate root
         let _ = super::HutConfig::default_template("t");
         let _ = super::HutError::NotAProject;
         let _ = super::Lockfile::new();
         let _ = super::default_includes();
-        let _: std::marker::PhantomData<super::RegistryIndex> = std::marker::PhantomData;
         let _ = super::flags::Flags::default();
     }
 }

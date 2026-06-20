@@ -21,7 +21,6 @@ use colored::Colorize;
 use hut::config::HutConfig;
 use hut::error::{HutError, HutResult};
 use hut::lockfile::{LockedPackage, Lockfile};
-use hut::registry::{self};
 
 // ── Helper: hut home directory ────────────────────────────────────────────
 
@@ -87,16 +86,12 @@ enum Commands {
 
     /// Install all dependencies (resolves + fetches, writes lockfile)
     #[command(alias = "i")]
-    Install {
-        /// Custom registry URL
-        #[arg(long)]
-        registry: Option<String>,
-    },
+    Install,
 
     /// Add a dependency and install it
     #[command(alias = "a")]
     Add {
-        /// Package spec, e.g. "user/libfoo" or "user/libfoo@^1.0"
+        /// Package name (must exist in packages.toml)
         pkg: String,
         /// Add as a development dependency
         #[arg(long)]
@@ -104,9 +99,6 @@ enum Commands {
         /// Add as a build dependency
         #[arg(long)]
         build: bool,
-        /// Custom registry URL
-        #[arg(long)]
-        registry: Option<String>,
     },
 
     /// Remove a dependency
@@ -267,13 +259,12 @@ fn main() {
     let result = match cli.command {
         Commands::Init { name } => cmd_init(name),
         Commands::Create { template } => cmd_create(&template),
-        Commands::Install { registry } => cmd_install(registry.as_deref()),
+        Commands::Install => cmd_install(),
         Commands::Add {
             pkg,
             dev,
             build,
-            registry,
-        } => cmd_add(&pkg, dev, build, registry.as_deref()),
+        } => cmd_add(&pkg, dev, build),
         Commands::Remove { pkg } => cmd_remove(&pkg),
         Commands::Update { pkg } => cmd_update(pkg.as_deref()),
         Commands::Outdated => cmd_outdated(),
@@ -464,7 +455,7 @@ fn cmd_create(template: &str) -> HutResult<()> {
 }
 
 /// 3. `hut install`
-fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
+fn cmd_install() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
@@ -477,21 +468,19 @@ fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
         return Ok(());
     }
 
-    // Fetch the registry for resolution
-    let registry = registry::fetch_registry(registry_url)?;
+    let index = hut::index::PackagesIndex::load_builtin()?;
     let cache = cache_dir();
 
-    // Resolve all dependencies
+    // Resolve all dependencies using local index
     println!("{} dependencies...", "Resolving".bold().cyan());
-    let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
+    let resolved = hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache)?;
 
     // Update lockfile with resolved entries
     for dep in &resolved {
         let locked = LockedPackage {
             name: dep.name.clone(),
             version: dep.version.clone(),
-            source: String::new(),
+            source: dep.package.repository.clone().unwrap_or_default(),
             integrity: String::new(),
             resolved: dep.package.repository.clone().unwrap_or_default(),
             dependencies: dep.package.dependencies.clone(),
@@ -506,24 +495,16 @@ fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
         resolved.len().to_string().bold()
     );
 
-    // Fetch + install
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
-
+    // Packages are already fetched by the resolver; nothing more to do.
     Ok(())
 }
 
 /// 4. `hut add <pkg> [--dev] [--build]`
-fn cmd_add(
-    pkg_spec: &str,
-    dev: bool,
-    build: bool,
-    registry_url: Option<&str>,
-) -> HutResult<()> {
+fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
 
-    // Parse package name and optional version constraint
-    let (name, constraint) = parse_dep_spec(pkg_spec);
-    let constraint = constraint.unwrap_or_else(|| "*".to_string());
+    // Parse package name (just the name, version comes from index)
+    let name = pkg_spec.trim();
 
     let target_map = if dev {
         &mut config.test_dependencies
@@ -533,17 +514,27 @@ fn cmd_add(
         &mut config.dependencies
     };
 
-    if target_map.contains_key(&name) {
+    if target_map.contains_key(name) {
         println!(
-            "{} {} is already a dependency (version: {}). Use `hut update` to change it.",
+            "{} {} is already a dependency. Use `hut update` to change it.",
             "info:".cyan().bold(),
-            name.bold(),
-            target_map[&name]
+            name.bold()
         );
         return Ok(());
     }
 
-    target_map.insert(name.clone(), constraint.clone());
+    // Verify package exists in index
+    let index = hut::index::PackagesIndex::load_builtin()?;
+    if index.find(name).is_none() {
+        eprintln!(
+            "{} Package '{}' not found in packages.toml.\n       Add it to ~/.config/hut/packages.toml or use a supported package.",
+            "error:".red().bold(),
+            name
+        );
+        return Ok(());
+    }
+
+    target_map.insert(name.to_string(), "latest".to_string());
     config.save(&config_path)?;
 
     let dep_type = if dev {
@@ -564,20 +555,16 @@ fn cmd_add(
     // Now install
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(registry_url)?;
     let cache = cache_dir();
 
-    // Resolve all dependencies
     println!("{} dependencies...", "Resolving".bold().cyan());
-    let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
+    let resolved = hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache)?;
 
-    // Update lockfile
     for dep in &resolved {
         let locked = LockedPackage {
             name: dep.name.clone(),
             version: dep.version.clone(),
-            source: String::new(),
+            source: dep.package.repository.clone().unwrap_or_default(),
             integrity: String::new(),
             resolved: dep.package.repository.clone().unwrap_or_default(),
             dependencies: dep.package.dependencies.clone(),
@@ -586,11 +573,7 @@ fn cmd_add(
     }
     lockfile.save(&lock_path)?;
 
-    // Fetch + install
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
-
     println!("{} installed {}", "Done".green().bold(), name.bold());
-
     Ok(())
 }
 
@@ -638,7 +621,7 @@ fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None)?;
+    let index = hut::index::PackagesIndex::load_builtin()?;
 
     let to_update: Vec<String> = if let Some(target) = pkg {
         if !config.dependencies.contains_key(target)
@@ -681,13 +664,13 @@ fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
 
     // Re-resolve
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
 
     for dep in &resolved {
         let locked = LockedPackage {
             name: dep.name.clone(),
             version: dep.version.clone(),
-            source: String::new(),
+            source: dep.package.repository.clone().unwrap_or_default(),
             integrity: String::new(),
             resolved: dep.package.repository.clone().unwrap_or_default(),
             dependencies: dep.package.dependencies.clone(),
@@ -695,10 +678,6 @@ fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
         lockfile.insert(locked);
     }
     lockfile.save(&lock_path)?;
-
-    // Fetch updated packages
-    let cache = cache_dir();
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
 
     println!("{} dependencies updated.", "Updated".green().bold());
 
@@ -710,11 +689,11 @@ fn cmd_outdated() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None)?;
+    let index = hut::index::PackagesIndex::load_builtin()?;
 
     let mut found_outdated = false;
 
-    for (name, constraint) in config
+    for (name, _constraint) in config
         .dependencies
         .iter()
         .chain(config.build_dependencies.iter())
@@ -722,27 +701,16 @@ fn cmd_outdated() -> HutResult<()> {
     {
         let current = lockfile.get(name).map(|l| l.version.as_str());
 
-        if let Some(entry) = registry.find(name) {
-            let latest = match hut::registry::resolve_version(entry, constraint) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            let is_outdated = match current {
-                Some(cur) if cur != latest => true,
-                None => true,
-                _ => false,
-            };
-
+        if let Some(_entry) = index.find(name) {
+            let is_outdated = current.is_none(); // Simple: if not locked, it's "outdated"
             if is_outdated {
                 found_outdated = true;
                 let current_display = current.unwrap_or("none");
                 println!(
-                    "{} {} {} → {}",
+                    "{} {} → repo: {}",
                     name.bold(),
                     current_display.red(),
-                    "→".dimmed(),
-                    latest.green().bold()
+                    index.find(name).unwrap().repo.dimmed()
                 );
             }
         }
@@ -838,8 +806,8 @@ fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<()> {
     {
         vec![]
     } else {
-        let registry = registry::fetch_registry(None)?;
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?
+        let index = hut::index::PackagesIndex::load_builtin()?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?
     };
 
     // ── Build the project ────────────────────────────────────────────────
@@ -945,8 +913,8 @@ fn cmd_run(
     {
         vec![]
     } else {
-        let registry = registry::fetch_registry(None)?;
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?
+        let index = hut::index::PackagesIndex::load_builtin()?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?
     };
 
     hut::builder::build_project(&config, &resolved, release)?;
@@ -1018,9 +986,9 @@ fn cmd_test() -> HutResult<()> {
     // Reuse the builder — for now, just build the project
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None)?;
+    let index = hut::index::PackagesIndex::load_builtin()?;
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
 
     hut::builder::build_project(&config, &resolved, false)?;
 
@@ -1122,20 +1090,17 @@ fn cmd_publish() -> HutResult<()> {
         config.package.version
     );
     println!();
-    println!("To publish to the hut registry:");
+    println!("To make your package installable with hut:");
     println!();
-    println!("  1. Push your code to GitHub (or any git host).");
-    println!("  2. Tag a release using git tags matching semver:");
-    println!("     {}", "$ git tag v0.1.0 && git push --tags".dimmed());
-    println!("  3. Register your package by submitting a PR to:");
-    println!("     {}", "https://github.com/hutpm/registry".underline());
-    println!("     Add your package to the registry index.");
+    println!("  1. Push your code to GitHub.");
+    println!("  2. Add a hut.toml with [package] metadata.");
+    println!("  3. Users can install it by adding your package to");
+    println!("     ~/.config/hut/packages.toml:");
     println!();
-    println!("  Your hut.toml must include:");
-    println!("  {}", "[package]".dimmed());
-    println!("  {}", "name = \"{}\"".dimmed());
-    println!("  {}", "version = \"0.1.0\"".dimmed());
-    println!("  {}", "repository = \"<your repo URL>\"".dimmed());
+    println!("     [packages.{}]", config.package.name);
+    println!("     repo = \"yourgithub/{}", config.package.name);
+    println!("     includes = [\"include\"]");
+    println!();
 
     Ok(())
 }
@@ -1319,8 +1284,11 @@ fn cmd_patch(pkg: &str) -> HutResult<()> {
     })?;
 
     let cache = cache_dir();
-    let pkg_dir =
-        hut::fetcher::fetch_package(pkg, &locked.resolved, &locked.version, &cache)?;
+    let (_pkg, pkg_dir) = hut::fetcher::fetch_package_metadata(
+        pkg,
+        &locked.resolved,
+        &locked.version,
+    )?;
 
     println!("{}", "Patch mode:".bold().underline());
     println!();
@@ -1429,9 +1397,9 @@ fn cmd_dev() -> HutResult<()> {
     // Build once
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None)?;
+    let index = hut::index::PackagesIndex::load_builtin()?;
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &index, &cache_dir())?;
 
     hut::builder::build_project(&config, &resolved, false)?;
 
@@ -1596,12 +1564,17 @@ fn cmd_completions(shell: &str) -> HutResult<()> {
 }
 
 /// 22. `hut search <query>`
+/// 23. `hut search <query>` — search local packages.toml
 fn cmd_search(query: &str) -> HutResult<()> {
-    let registry = registry::fetch_registry(None)?;
-    let results = registry.search(query);
+    let index = hut::index::PackagesIndex::load_builtin()?;
+    let results = index.search(query);
 
     if results.is_empty() {
         println!("{} {}", "No packages found for".dimmed(), query.bold());
+        println!(
+            "{}",
+            "Add custom packages to ~/.config/hut/packages.toml".dimmed()
+        );
         return Ok(());
     }
 
@@ -1613,29 +1586,20 @@ fn cmd_search(query: &str) -> HutResult<()> {
     );
     println!();
 
-    for entry in results {
+    for (name, entry) in results {
         println!(
-            "  {} - {}",
-            entry.name.bold().cyan(),
+            "  {} — {}",
+            name.bold().cyan(),
             entry.description.dimmed()
         );
-        let version_count = entry.versions.len();
-        let latest = entry.versions.keys().last();
-        if let Some(lv) = latest {
-            print!("    {} {}", "Latest:".dimmed(), lv.bold());
-            if version_count > 1 {
-                print!(" ({} versions)", version_count);
-            }
-            println!();
+        println!(
+            "    repo: {}   includes: [{}]",
+            entry.repo.dimmed(),
+            entry.includes.join(", ").dimmed()
+        );
+        if !entry.libs.is_empty() {
+            println!("    libs: [{}]", entry.libs.join(", ").dimmed());
         }
-        if !entry.tags.is_empty() {
-            println!(
-                "    {} {}",
-                "Tags:".dimmed(),
-                entry.tags.join(", ").dimmed()
-            );
-        }
-        println!("    {}", entry.repository.dimmed());
         println!();
     }
 
@@ -2012,19 +1976,7 @@ mod tests {
     fn test_alias_i_for_install() {
         let cli = Cli::try_parse_from(["hut", "i"]).unwrap();
         match cli.command {
-            Commands::Install { registry } => assert!(registry.is_none()),
-            _ => panic!("expected Install alias 'i'"),
-        }
-    }
-
-    #[test]
-    fn test_alias_i_with_registry() {
-        let cli =
-            Cli::try_parse_from(["hut", "i", "--registry", "https://reg.example.com"]).unwrap();
-        match cli.command {
-            Commands::Install { registry } => {
-                assert_eq!(registry, Some("https://reg.example.com".into()))
-            }
+            Commands::Install => {},
             _ => panic!("expected Install alias 'i'"),
         }
     }
@@ -2034,15 +1986,11 @@ mod tests {
         let cli = Cli::try_parse_from(["hut", "a", "user/pkg"]).unwrap();
         match cli.command {
             Commands::Add {
-                pkg,
-                dev,
-                build,
-                registry,
+                pkg, dev, build
             } => {
                 assert_eq!(pkg, "user/pkg");
                 assert!(!dev);
                 assert!(!build);
-                assert!(registry.is_none());
             }
             _ => panic!("expected Add alias 'a'"),
         }
@@ -2180,15 +2128,11 @@ mod tests {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo"]).unwrap();
         match cli.command {
             Commands::Add {
-                pkg,
-                dev,
-                build,
-                registry,
+                pkg, dev, build
             } => {
                 assert_eq!(pkg, "user/libfoo");
                 assert!(!dev);
                 assert!(!build);
-                assert!(registry.is_none());
             }
             _ => panic!("expected Add"),
         }
@@ -2213,51 +2157,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_add_with_registry() {
-        let cli = Cli::try_parse_from([
-            "hut",
-            "add",
-            "user/pkg",
-            "--registry",
-            "https://r.example.com",
-        ])
-        .unwrap();
-        match cli.command {
-            Commands::Add { registry, .. } => {
-                assert_eq!(registry, Some("https://r.example.com".into()))
-            }
-            _ => panic!("expected Add"),
-        }
-    }
-
-    #[test]
-    fn test_parse_add_dev_build_registry() {
-        let cli = Cli::try_parse_from([
-            "hut",
-            "add",
-            "user/pkg",
-            "--dev",
-            "--build",
-            "--registry",
-            "https://r.example.com",
-        ])
-        .unwrap();
-        match cli.command {
-            Commands::Add {
-                dev,
-                build,
-                registry,
-                ..
-            } => {
-                assert!(dev);
-                assert!(build);
-                assert_eq!(registry, Some("https://r.example.com".into()));
-            }
-            _ => panic!("expected Add"),
-        }
-    }
-
-    #[test]
     fn test_parse_add_with_version() {
         let cli = Cli::try_parse_from(["hut", "add", "user/libfoo@^1.0"]).unwrap();
         match cli.command {
@@ -2271,19 +2170,7 @@ mod tests {
     #[test]
     fn test_parse_install_default() {
         let cli = Cli::try_parse_from(["hut", "install"]).unwrap();
-        match cli.command {
-            Commands::Install { registry } => assert!(registry.is_none()),
-            _ => panic!("expected Install"),
-        }
-    }
-
-    #[test]
-    fn test_parse_install_with_registry() {
-        let cli = Cli::try_parse_from(["hut", "install", "--registry", "https://r.io"]).unwrap();
-        match cli.command {
-            Commands::Install { registry } => assert_eq!(registry, Some("https://r.io".into())),
-            _ => panic!("expected Install"),
-        }
+        assert!(matches!(cli.command, Commands::Install));
     }
 
     // ── Remove command ─────────────────────────────────────────────────────
