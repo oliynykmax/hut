@@ -931,6 +931,25 @@ fn cmd_run(target: Option<String>, args: Vec<String>, release: bool, jit: bool) 
             sources.len().to_string().bold()
         );
 
+        // ── Add C++ include paths if any source file is C++ ──────────────
+        let has_cxx = sources.iter().any(|s| {
+            let ext = s.extension().and_then(|e| e.to_str()).unwrap_or("");
+            matches!(ext, "cpp" | "cc" | "cxx" | "CPP" | "hpp" | "hh" | "hxx")
+        });
+        if has_cxx {
+            let cxx_paths = hut::jit::Tcc::discover_cxx_include_paths();
+            for path in &cxx_paths {
+                let added = tcc.add_include_path(&path.display().to_string());
+                if added {
+                    println!(
+                        "{} include path: {}",
+                        "   JIT".bold().magenta(),
+                        path.display().to_string().dimmed()
+                    );
+                }
+            }
+        }
+
         let mut combined_source = String::new();
         for src in &sources {
             let content = std::fs::read_to_string(src)

@@ -4,7 +4,7 @@
 // Falls back gracefully if libtcc is not installed.
 
 use std::ffi::{CString, c_char, c_int, c_void};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
 
@@ -18,6 +18,7 @@ pub struct Tcc {
     compile_string_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int,
     relocate_fn: unsafe extern "C" fn(*mut TCCState, *const c_void) -> c_int,
     get_symbol_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void,
+    add_include_path_fn: Option<unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int>,
 }
 
 unsafe impl Send for Tcc {}
@@ -72,6 +73,15 @@ impl Tcc {
             let get_symbol_fn: unsafe extern "C" fn(*mut TCCState, *const c_char) -> *mut c_void =
                 *lib.get(b"tcc_get_symbol").ok()?;
 
+            let add_include_path_fn: Option<
+                unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int,
+            > = lib
+                .get::<unsafe extern "C" fn(*mut TCCState, *const c_char) -> c_int>(
+                    b"tcc_add_include_path",
+                )
+                .ok()
+                .map(|sym| *sym);
+
             Some(Tcc {
                 _lib: lib,
                 state,
@@ -79,6 +89,7 @@ impl Tcc {
                 compile_string_fn,
                 relocate_fn,
                 get_symbol_fn,
+                add_include_path_fn,
             })
         }
     }
@@ -91,6 +102,78 @@ impl Tcc {
             bail!("TCC compilation failed");
         }
         Ok(())
+    }
+
+    /// Add an include path to the TCC state (e.g., C++ standard library headers).
+    /// Returns false if the symbol is not available (libtcc too old).
+    pub fn add_include_path(&mut self, path: &str) -> bool {
+        let Some(add_fn) = self.add_include_path_fn else {
+            return false;
+        };
+        let c_path = match CString::new(path) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        unsafe { add_fn(self.state, c_path.as_ptr()) != -1 }
+    }
+
+    /// Discover system C++ include paths.
+    /// Scans /usr/include/c++/ for the highest version directory.
+    pub fn discover_cxx_include_paths() -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+
+        // Standard C++ library headers
+        let base = Path::new("/usr/include/c++");
+        if base.exists() {
+            if let Ok(entries) = std::fs::read_dir(base) {
+                let mut versions: Vec<String> = entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .filter(|n| n.chars().next().map_or(false, |c| c.is_ascii_digit()))
+                    .collect();
+                versions.sort_by(|a, b| b.cmp(a)); // highest first
+                for ver in &versions {
+                    let p = base.join(ver);
+                    if p.join("iostream").exists() {
+                        paths.push(p);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Platform-specific arch suffix
+        if let Ok(output) = std::process::Command::new("gcc")
+            .args(["-print-multiarch"])
+            .output()
+        {
+            let arch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !arch.is_empty() {
+                let arch_base = Path::new("/usr/include").join(&arch).join("c++");
+                if arch_base.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&arch_base) {
+                        let mut versions: Vec<String> = entries
+                            .filter_map(|e| e.ok())
+                            .map(|e| e.file_name().to_string_lossy().to_string())
+                            .filter(|n| n.chars().next().map_or(false, |c| c.is_ascii_digit()))
+                            .collect();
+                        versions.sort_by(|a, b| b.cmp(a));
+                        for ver in &versions {
+                            let p = arch_base.join(ver);
+                            if p.join("iostream").exists() {
+                                paths.push(p);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: just /usr/include for standard C headers
+        paths.push(PathBuf::from("/usr/include"));
+
+        paths
     }
 
     /// Relocate and finalize the compiled code.
