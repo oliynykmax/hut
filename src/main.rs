@@ -315,6 +315,24 @@ async fn cmd_init(name: Option<String>) -> HutResult<()> {
         std::fs::write(&gitignore, "target/\n.hut/cache/\n*.o\n*.a\n*.so\n")?;
     }
 
+    // Initialize a git repository
+    let git_dir = project_dir.join(".git");
+    if !git_dir.exists() {
+        match std::process::Command::new("git")
+            .arg("init")
+            .arg("-q")
+            .current_dir(&project_dir)
+            .status()
+        {
+            Ok(status) if status.success() => {
+                println!("{} .git repository", "Initialized".green().bold());
+            }
+            _ => {
+                // git not installed — that's fine
+            }
+        }
+    }
+
     println!();
     println!("{} Run:", "Next steps:".bold());
     println!("  hut build");
