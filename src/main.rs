@@ -132,6 +132,9 @@ enum Commands {
         /// Build in release mode
         #[arg(long, short)]
         release: bool,
+        /// JIT compile and run via libtcc (no binaries written)
+        #[arg(long)]
+        jit: bool,
     },
 
     /// Discover and run test targets
@@ -242,7 +245,7 @@ async fn main() {
         Commands::Update { pkg } => cmd_update(pkg.as_deref()).await,
         Commands::Outdated => cmd_outdated().await,
         Commands::Build { release, compiler } => cmd_build(release, compiler.as_deref()).await,
-        Commands::Run { target, args, release } => cmd_run(target, args, release).await,
+        Commands::Run { target, args, release, jit } => cmd_run(target, args, release, jit).await,
         Commands::Test => cmd_test().await,
         Commands::X { pkg, args } => cmd_x(&pkg, &args).await,
         Commands::Link { path } => cmd_link(path.as_deref()).await,
@@ -806,10 +809,84 @@ async fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<
 }
 
 /// 9. `hut run [target] [--release]`
-async fn cmd_run(target: Option<String>, args: Vec<String>, release: bool) -> HutResult<()> {
+async fn cmd_run(
+    target: Option<String>,
+    args: Vec<String>,
+    release: bool,
+    jit: bool,
+) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let project_root = find_project_root()?;
 
+    // ── JIT path (via libtcc, in-process) ────────────────────────────────
+    if jit {
+        let sources = hut::builder::collect_sources(&config, &project_root)?;
+
+        if sources.is_empty() {
+            return Err(HutError::Other(
+                "No source files found for JIT compilation. Add .c/.cpp files to src/.".into(),
+            ));
+        }
+
+        let mut tcc = hut::jit::Tcc::new().ok_or_else(|| {
+            HutError::Other(
+                "libtcc not found.\n\n\
+                 Install TCC (Tiny C Compiler) to use `hut run --jit`:\n\
+                   • Ubuntu/Debian:  sudo apt install tcc libtcc-dev\n\
+                   • Fedora:         sudo dnf install tcc\n\
+                   • Arch:           sudo pacman -S tcc\n\
+                   • macOS:          brew install tcc\n\
+                   • From source:\n\
+                       git clone https://repo.or.cz/tinycc.git\n\
+                       cd tinycc && ./configure && make && sudo make install"
+                    .into(),
+            )
+        })?;
+
+        println!(
+            "{} {} source file(s)...",
+            "   JIT".bold().magenta(),
+            sources.len().to_string().bold()
+        );
+
+        let mut combined_source = String::new();
+        for src in &sources {
+            let content = std::fs::read_to_string(src)
+                .map_err(|e| HutError::Other(format!("Failed to read {}: {e}", src.display())))?;
+            combined_source.push_str(&content);
+            combined_source.push('\n');
+        }
+
+        tcc.compile(&combined_source)
+            .map_err(|e| HutError::Other(format!("JIT compilation failed: {e}")))?;
+
+        tcc.relocate()
+            .map_err(|e| HutError::Other(format!("JIT relocation failed: {e}")))?;
+
+        println!(
+            "{} {} (JIT)",
+            "   Running".bold().green(),
+            target.as_deref().unwrap_or(&config.package.name).bold(),
+        );
+
+        let exit_code = tcc
+            .run_main(&args)
+            .map_err(|e| HutError::Other(format!("JIT execution failed: {e}")))?;
+
+        // Flush stdout — JIT'ed code and hut share the same output buffer
+        use std::io::Write;
+        std::io::stdout().flush().ok();
+
+        if exit_code != 0 {
+            return Err(HutError::Other(format!(
+                "Process exited with code {exit_code}"
+            )));
+        }
+
+        return Ok(());
+    }
+
+    // ── Normal build + run path ──────────────────────────────────────────
     // Build first
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
@@ -845,9 +922,10 @@ async fn cmd_run(target: Option<String>, args: Vec<String>, release: bool) -> Hu
                 .map_err(|e| HutError::Other(format!("Failed to run script: {e}")))?;
 
             if !status.success() {
-                return Err(HutError::Other(
-                    format!("Script exited with code {}", status.code().unwrap_or(-1)),
-                ));
+                return Err(HutError::Other(format!(
+                    "Script exited with code {}",
+                    status.code().unwrap_or(-1)
+                )));
             }
             return Ok(());
         }
@@ -873,7 +951,7 @@ async fn cmd_run(target: Option<String>, args: Vec<String>, release: bool) -> Hu
     if !status.success() {
         let code = status.code().unwrap_or(-1);
         if code != 0 {
-            return Err(HutError::Other(format!("Process exited with code {}", code)));
+            return Err(HutError::Other(format!("Process exited with code {code}")));
         }
     }
 

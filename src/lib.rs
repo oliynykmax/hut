@@ -9,6 +9,7 @@ pub mod registry;
 pub mod builder;
 pub mod fetcher;
 pub mod include;
+pub mod jit;
 pub mod resolver;
 
 pub use config::HutConfig;

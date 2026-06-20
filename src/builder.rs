@@ -130,7 +130,7 @@ fn is_cpp_file(path: &Path) -> bool {
     )
 }
 
-fn is_source_file(path: &Path) -> bool {
+pub fn is_source_file(path: &Path) -> bool {
     is_c_file(path) || is_cpp_file(path)
 }
 
@@ -139,7 +139,7 @@ fn is_source_file(path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Collect all .c / .cpp files from the configured source directories (or default "src/")
-fn collect_sources(config: &HutConfig, project_root: &Path) -> HutResult<Vec<PathBuf>> {
+pub fn collect_sources(config: &HutConfig, project_root: &Path) -> HutResult<Vec<PathBuf>> {
     let source_dirs: Vec<&str> = vec!["src"];
 
     let mut files: Vec<PathBuf> = Vec::new();
