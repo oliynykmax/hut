@@ -88,7 +88,7 @@ impl HutConfig {
                 version: "0.1.0".to_string(),
                 description: None,
                 authors: vec![],
-                license: Some("MIT".to_string()),
+                license: None,
                 language: "c".to_string(),
                 repository: None,
                 homepage: None,
@@ -204,7 +204,7 @@ test = "make test"
         let config = HutConfig::default_template("myapp");
         assert_eq!(config.package.name, "myapp");
         assert_eq!(config.package.version, "0.1.0");
-        assert_eq!(config.package.license, Some("MIT".to_string()));
+        assert_eq!(config.package.license, None);
         assert_eq!(config.package.language, "c");
     }
 

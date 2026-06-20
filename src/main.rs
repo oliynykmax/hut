@@ -1,4 +1,4 @@
-// ── hut: a Bun-like C/C++ package manager ─────────────────────────────────
+// ── hut: fast C/C++ package manager ──────────────────────────────────────
 //
 // CLI binary using clap derive.  All heavy lifting is performed by the
 // library modules under `hut::`.
@@ -55,7 +55,7 @@ fn available_compilers() -> Vec<String> {
 
 // ── CLI definition ─────────────────────────────────────────────────────────
 
-/// hut — A Bun-inspired build system and package manager for C/C++
+/// hut — A fast build system and package manager for C/C++
 #[derive(Parser)]
 #[command(name = "hut", version, about, long_about = None)]
 struct Cli {

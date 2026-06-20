@@ -251,7 +251,7 @@ mod tests {
             version: "1.2.3".into(),
             description: Some("A test library".into()),
             authors: vec!["Alice".into(), "Bob".into()],
-            license: Some("MIT".into()),
+            license: None,
             repository: Some("https://github.com/example/testlib".into()),
             homepage: Some("https://example.com/testlib".into()),
             sources: vec!["src".into()],
@@ -280,7 +280,7 @@ mod tests {
         assert_eq!(pkg.version, "1.2.3");
         assert_eq!(pkg.description, Some("A test library".into()));
         assert_eq!(pkg.authors, vec!["Alice", "Bob"]);
-        assert_eq!(pkg.license, Some("MIT".into()));
+        assert_eq!(pkg.license, None);
         assert_eq!(pkg.repository, Some("https://github.com/example/testlib".into()));
         assert_eq!(pkg.homepage, Some("https://example.com/testlib".into()));
         assert_eq!(pkg.sources, vec!["src"]);
@@ -387,7 +387,7 @@ mod tests {
         assert!(toml_str.contains("name = \"testlib\""));
         assert!(toml_str.contains("version = \"1.2.3\""));
         assert!(toml_str.contains("description = \"A test library\""));
-        assert!(toml_str.contains("license = \"MIT\""));
+        assert!(!toml_str.contains("license"));
         assert!(toml_str.contains("dep1 = \"^1.0\""));
     }
 

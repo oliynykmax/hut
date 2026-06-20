@@ -1,13 +1,11 @@
 # 🛖 hut
 
 <p align="center">
-  <strong>A Bun-inspired build system and package manager for C/C++</strong>
+  <strong>A fast build system and package manager for C/C++</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/lines-5%2C014-orange" alt="Lines of Code">
   <img src="https://img.shields.io/badge/language-Rust-red" alt="Language">
   <img src="https://img.shields.io/badge/C%2FC%2B%2B-supported-blueviolet" alt="C/C++">
 </p>
@@ -19,7 +17,7 @@
  \_/ \_/ \_/ \_/
 ```
 
-hut is a **fast, all-in-one build system and package manager** for C and C++ projects. Inspired by [Bun](https://bun.sh) and [Cargo](https://doc.rust-lang.org/cargo/), it replaces cmake + make + vcpkg + conan with a single, zero-config tool.
+hut is a **fast, all-in-one build system and package manager** for C and C++ projects. It replaces cmake + make + vcpkg + conan with a single, zero-config tool.
 
 > **Why "hut"?** A hut is simple, sturdy, and gets the job done — just like this tool. 🛖
 
@@ -65,7 +63,7 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 | `hut publish` | Show publishing instructions |
 | `hut patch <pkg>` | Extract a dependency's source for local patching |
 | `hut info` | Show project info and dependency tree |
-| `hut upgrade` | Self-update instructions |
+| `hut upgrade` | Self-update hut to the latest version |
 | `hut workspace add/ls/run` | Manage workspace members |
 | `hut pm cache/ls/bin` | Manage the package cache |
 | `hut completions <shell>` | Generate shell completions |
@@ -198,16 +196,16 @@ bench = "./benchmarks/run.sh"
 ### From Source
 
 ```bash
-git clone https://github.com/hutpm/hut.git
-cd hut
+git clone git@github.com:oliynykmax/hut.git ~/.hut
+cd ~/.hut
 cargo build --release
-sudo cp target/release/hut /usr/local/bin/
+cp target/release/hut ~/.local/bin/
 ```
 
-### Via Script (Coming Soon)
+### Via Script
 
 ```bash
-curl -fsSL https://hut.sh/install | bash
+curl -fsSL https://raw.githubusercontent.com/oliynykmax/hut/main/install.sh | bash
 ```
 
 ### Prerequisites
@@ -271,7 +269,7 @@ This ensures header-only libraries are tracked for rebuilds and properly include
 | 50    | 0.297s | 0.827s | **2.78×** |
 | 100   | 0.568s | 1.603s | **2.82×** |
 
-hut parallelizes compilation across all cores, giving a consistent **~2.8× speedup** over sequential gcc on cold builds. The speedup grows with project size.
+hut parallelizes compilation across all cores, giving a consistent **~2.8× speedup** over sequential gcc on cold builds.
 
 ### Compilation Speed — Hot Build (incremental, 1 file changed)
 
@@ -311,10 +309,10 @@ Both produce identical machine code — hut doesn't add any runtime overhead.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Check the [GitHub repository](https://github.com/hutpm/hut) for issues and pull requests.
+Contributions are welcome! Check the [GitHub repository](https://github.com/oliynykmax/hut) for issues and pull requests.
 
 ```bash
-git clone https://github.com/hutpm/hut.git
+git clone git@github.com:oliynykmax/hut.git
 cd hut
 cargo build
 cargo test
@@ -322,12 +320,6 @@ cargo test
 
 ---
 
-## 📜 License
-
-MIT © 2025 hut contributors
-
----
-
 <p align="center">
-  <sub>Built with ❤️ in Rust. Fast like Bun, simple like C.</sub>
+  <sub>Built with Rust. Simple and fast.</sub>
 </p>
