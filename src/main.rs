@@ -215,6 +215,16 @@ enum Commands {
         query: String,
     },
 
+    /// Format C/C++ source files with clang-format
+    Fmt {
+        /// Check only — don't write changes (like --check)
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Lint C/C++ source files with clang-tidy or compiler warnings
+    Lint,
+
     /// Clean build artifacts (removes target/)
     Clean,
 }
@@ -287,6 +297,8 @@ async fn main() {
         Commands::Workspace(sub) => cmd_workspace(sub).await,
         Commands::Completions { shell } => cmd_completions(&shell).await,
         Commands::Search { query } => cmd_search(&query).await,
+        Commands::Fmt { check } => cmd_fmt(check).await,
+        Commands::Lint => cmd_lint().await,
         Commands::Clean => cmd_clean().await,
     };
 
@@ -1631,7 +1643,187 @@ async fn cmd_search(query: &str) -> HutResult<()> {
     Ok(())
 }
 
-/// 23. `hut clean` — remove build artifacts (target/)
+/// 23. `hut fmt [--check]` — format C/C++ source files with clang-format
+async fn cmd_fmt(check: bool) -> HutResult<()> {
+    if !command_exists("clang-format") {
+        return Err(HutError::Other(
+            "clang-format not found. Install it:\n  • Ubuntu/Debian:  sudo apt install clang-format\n  • macOS:          brew install clang-format\n  • Arch:           sudo pacman -S clang".into(),
+        ));
+    }
+
+    let project_root = find_project_root()?;
+    let (config, _config_path) = HutConfig::find()?;
+
+    let sources = hut::builder::collect_sources(&config, &project_root)
+        .unwrap_or_else(|_| Vec::new());
+
+    let mut files: Vec<PathBuf> = sources
+        .into_iter()
+        .filter(|f| {
+            f.extension()
+                .map(|e| e == "c" || e == "h" || e == "cpp" || e == "hpp" || e == "cc" || e == "cxx" || e == "hxx")
+                .unwrap_or(false)
+        })
+        .collect();
+
+    // Also format headers in include dirs
+    for inc in &["include", "src"] {
+        let dir = project_root.join(inc);
+        if dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        if let Some(ext) = path.extension() {
+                            if ext == "h" || ext == "hpp" || ext == "hxx" {
+                                files.push(path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    files.sort();
+    files.dedup();
+
+    if files.is_empty() {
+        println!("{} No C/C++ source files found.", "info:".dimmed());
+        return Ok(());
+    }
+
+    if check {
+        println!("{} Checking formatting...", "→".dimmed());
+        let mut failed = Vec::new();
+        for file in &files {
+            let output = std::process::Command::new("clang-format")
+                .args(["--dry-run", "--Werror"])
+                .arg(file)
+                .output()?;
+            if !output.status.success() {
+                failed.push(file.clone());
+            }
+        }
+        if failed.is_empty() {
+            println!(
+                "{} All {} file(s) are properly formatted.",
+                "✓".green(),
+                files.len()
+            );
+        } else {
+            for f in &failed {
+                eprintln!("  {} {}", "M".red(), f.display());
+            }
+            return Err(HutError::Other(format!(
+                "{} file(s) need formatting. Run `hut fmt` to fix.",
+                failed.len()
+            )));
+        }
+    } else {
+        for file in &files {
+            print!("{} {}", "fmt".green(), file.display());
+            let output = std::process::Command::new("clang-format")
+                .arg("-i")
+                .arg(file)
+                .output()?;
+            if output.status.success() {
+                println!();
+            } else {
+                println!("  {} failed", "✗".red());
+            }
+        }
+        println!(
+            "{} Formatted {} file(s).",
+            "✓".green(),
+            files.len()
+        );
+    }
+
+    Ok(())
+}
+
+/// 24. `hut lint` — lint C/C++ source files
+async fn cmd_lint() -> HutResult<()> {
+    let project_root = find_project_root()?;
+    let (config, _config_path) = HutConfig::find()?;
+    let compiler = config.build.compiler.as_str();
+
+    let cc = match compiler {
+        "gcc" | "auto" => {
+            if command_exists("gcc") {
+                "gcc"
+            } else if command_exists("clang") {
+                "clang"
+            } else {
+                return Err(HutError::Other(
+                    "No C compiler found. Install gcc or clang.".into(),
+                ));
+            }
+        }
+        other => other,
+    };
+
+    let sources = hut::builder::collect_sources(&config, &project_root)?;
+
+    // Try clang-tidy first, fall back to compiler warnings
+    if command_exists("clang-tidy") {
+        println!("{} Running clang-tidy...", "→".dimmed());
+        for src in &sources {
+            print!("  {} ", "lint".green());
+            let status = std::process::Command::new("clang-tidy")
+                .arg(src)
+                .arg("--")
+                .arg("-std=c11")
+                .status()?;
+            if status.success() {
+                println!("{}", src.display());
+            } else {
+                println!("{} {}", "✗".red(), src.display());
+            }
+        }
+    } else {
+        println!(
+            "{} clang-tidy not found — using compiler warnings instead.",
+            "info:".dimmed()
+        );
+        println!(
+            "   Install clang-tidy: sudo apt install clang-tidy"
+        );
+        println!();
+
+        for src in &sources {
+            print!("  {} ", "lint".green());
+            let output = std::process::Command::new(cc)
+                .arg("-fsyntax-only")
+                .arg("-Wall")
+                .arg("-Wextra")
+                .arg("-Wpedantic")
+                .arg("-std=c11")
+                .arg(src)
+                .output()?;
+
+            if output.status.success() {
+                println!("{}", src.display());
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("{} {}", "✗".red(), src.display());
+                for line in stderr.lines().take(10) {
+                    eprintln!("    {}", line);
+                }
+            }
+        }
+    }
+
+    println!(
+        "{} Linted {} source file(s).",
+        "✓".green(),
+        sources.len()
+    );
+    Ok(())
+}
+
+/// 25. `hut clean` — remove build artifacts (target/)
 async fn cmd_clean() -> HutResult<()> {
     let project_root = find_project_root()?;
     let target_dir = project_root.join("target");
@@ -1675,6 +1867,17 @@ fn find_project_root() -> HutResult<PathBuf> {
         }
     }
     Err(HutError::NotAProject)
+}
+
+/// Check if a command exists on the PATH
+fn command_exists(cmd: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(cmd)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 // ── Embedded source constants ───────────────────────────────────────────────
