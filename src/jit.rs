@@ -52,8 +52,18 @@ impl Tcc {
                 return None;
             }
 
-            // Don't call tcc_set_output_type — TCC_OUTPUT_MEMORY is the default
-            // and the constant value differs across TCC versions (0 vs 1).
+            // Look up tcc_set_output_type. On some TCC versions the default is
+            // TCC_OUTPUT_EXE, not TCC_OUTPUT_MEMORY, so always set it explicitly.
+            // TCC_OUTPUT_MEMORY == 1 in the mob branch, 0 in upstream 0.9.27.
+            let set_output_type_fn: unsafe extern "C" fn(*mut TCCState, c_int) -> c_int =
+                *lib.get(b"tcc_set_output_type").ok()?;
+
+            // Set output type to TCC_OUTPUT_MEMORY (1 on mob, 0 on upstream 0.9.27).
+            // Try both values: mob branch uses 1, upstream uses 0.
+            // We try 1 first (mob), then 0 (upstream) if 1 fails.
+            if set_output_type_fn(state, 1) != 0 {
+                set_output_type_fn(state, 0);
+            }
 
             let delete_fn: unsafe extern "C" fn(*mut TCCState) =
                 *lib.get(b"tcc_delete").ok()?;

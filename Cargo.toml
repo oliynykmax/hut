@@ -1,6 +1,6 @@
 [package]
 name = "hut"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 description = "Fast build system and package manager for C/C++"
 repository = "https://github.com/oliynykmax/hut"
