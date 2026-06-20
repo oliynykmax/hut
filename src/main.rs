@@ -32,7 +32,7 @@ fn hut_home() -> PathBuf {
 }
 
 fn cache_dir() -> PathBuf {
-    hut::fetcher::get_default_cache_dir()
+    hut::fetcher::default_cache_dir()
 }
 
 fn packages_dir() -> PathBuf {
@@ -260,46 +260,46 @@ enum WorkspaceCommand {
 
 // ── Main entry point ───────────────────────────────────────────────────────
 
-#[tokio::main]
-async fn main() {
+
+fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Init { name } => cmd_init(name).await,
-        Commands::Create { template } => cmd_create(&template).await,
-        Commands::Install { registry } => cmd_install(registry.as_deref()).await,
+        Commands::Init { name } => cmd_init(name),
+        Commands::Create { template } => cmd_create(&template),
+        Commands::Install { registry } => cmd_install(registry.as_deref()),
         Commands::Add {
             pkg,
             dev,
             build,
             registry,
-        } => cmd_add(&pkg, dev, build, registry.as_deref()).await,
-        Commands::Remove { pkg } => cmd_remove(&pkg).await,
-        Commands::Update { pkg } => cmd_update(pkg.as_deref()).await,
-        Commands::Outdated => cmd_outdated().await,
-        Commands::Build { release, compiler } => cmd_build(release, compiler.as_deref()).await,
+        } => cmd_add(&pkg, dev, build, registry.as_deref()),
+        Commands::Remove { pkg } => cmd_remove(&pkg),
+        Commands::Update { pkg } => cmd_update(pkg.as_deref()),
+        Commands::Outdated => cmd_outdated(),
+        Commands::Build { release, compiler } => cmd_build(release, compiler.as_deref()),
         Commands::Run {
             target,
             args,
             release,
             jit,
-        } => cmd_run(target, args, release, jit).await,
-        Commands::Test => cmd_test().await,
-        Commands::X { pkg, args } => cmd_x(&pkg, &args).await,
-        Commands::Link { path } => cmd_link(path.as_deref()).await,
-        Commands::Unlink { pkg } => cmd_unlink(&pkg).await,
-        Commands::Publish => cmd_publish().await,
-        Commands::Pm(sub) => cmd_pm(sub).await,
-        Commands::Upgrade => cmd_upgrade().await,
-        Commands::Patch { pkg } => cmd_patch(&pkg).await,
-        Commands::Info => cmd_info().await,
-        Commands::Dev => cmd_dev().await,
-        Commands::Workspace(sub) => cmd_workspace(sub).await,
-        Commands::Completions { shell } => cmd_completions(&shell).await,
-        Commands::Search { query } => cmd_search(&query).await,
-        Commands::Fmt { check } => cmd_fmt(check).await,
-        Commands::Lint => cmd_lint().await,
-        Commands::Clean => cmd_clean().await,
+        } => cmd_run(target, args, release, jit),
+        Commands::Test => cmd_test(),
+        Commands::X { pkg, args } => cmd_x(&pkg, &args),
+        Commands::Link { path } => cmd_link(path.as_deref()),
+        Commands::Unlink { pkg } => cmd_unlink(&pkg),
+        Commands::Publish => cmd_publish(),
+        Commands::Pm(sub) => cmd_pm(sub),
+        Commands::Upgrade => cmd_upgrade(),
+        Commands::Patch { pkg } => cmd_patch(&pkg),
+        Commands::Info => cmd_info(),
+        Commands::Dev => cmd_dev(),
+        Commands::Workspace(sub) => cmd_workspace(sub),
+        Commands::Completions { shell } => cmd_completions(&shell),
+        Commands::Search { query } => cmd_search(&query),
+        Commands::Fmt { check } => cmd_fmt(check),
+        Commands::Lint => cmd_lint(),
+        Commands::Clean => cmd_clean(),
     };
 
     if let Err(e) = result {
@@ -311,7 +311,7 @@ async fn main() {
 // ── Command implementations ────────────────────────────────────────────────
 
 /// 1. `hut init [name]`
-async fn cmd_init(name: Option<String>) -> HutResult<()> {
+fn cmd_init(name: Option<String>) -> HutResult<()> {
     let project_name = name.clone().unwrap_or_else(|| {
         std::env::current_dir()
             .ok()
@@ -385,7 +385,7 @@ async fn cmd_init(name: Option<String>) -> HutResult<()> {
 }
 
 /// 2. `hut create <template>`
-async fn cmd_create(template: &str) -> HutResult<()> {
+fn cmd_create(template: &str) -> HutResult<()> {
     let cwd = std::env::current_dir()?;
 
     match template {
@@ -464,7 +464,7 @@ async fn cmd_create(template: &str) -> HutResult<()> {
 }
 
 /// 3. `hut install`
-async fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
+fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
@@ -478,13 +478,13 @@ async fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
     }
 
     // Fetch the registry for resolution
-    let registry = registry::fetch_registry(registry_url).await?;
+    let registry = registry::fetch_registry(registry_url)?;
     let cache = cache_dir();
 
     // Resolve all dependencies
     println!("{} dependencies...", "Resolving".bold().cyan());
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
 
     // Update lockfile with resolved entries
     for dep in &resolved {
@@ -507,13 +507,13 @@ async fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
     );
 
     // Fetch + install
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache).await?;
+    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
 
     Ok(())
 }
 
 /// 4. `hut add <pkg> [--dev] [--build]`
-async fn cmd_add(
+fn cmd_add(
     pkg_spec: &str,
     dev: bool,
     build: bool,
@@ -564,13 +564,13 @@ async fn cmd_add(
     // Now install
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(registry_url).await?;
+    let registry = registry::fetch_registry(registry_url)?;
     let cache = cache_dir();
 
     // Resolve all dependencies
     println!("{} dependencies...", "Resolving".bold().cyan());
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
 
     // Update lockfile
     for dep in &resolved {
@@ -587,7 +587,7 @@ async fn cmd_add(
     lockfile.save(&lock_path)?;
 
     // Fetch + install
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache).await?;
+    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
 
     println!("{} installed {}", "Done".green().bold(), name.bold());
 
@@ -595,7 +595,7 @@ async fn cmd_add(
 }
 
 /// 5. `hut remove <pkg>`
-async fn cmd_remove(pkg: &str) -> HutResult<()> {
+fn cmd_remove(pkg: &str) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
 
     let removed = config.dependencies.remove(pkg).is_some()
@@ -634,11 +634,11 @@ async fn cmd_remove(pkg: &str) -> HutResult<()> {
 }
 
 /// 6. `hut update [pkg]`
-async fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
+fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(None)?;
 
     let to_update: Vec<String> = if let Some(target) = pkg {
         if !config.dependencies.contains_key(target)
@@ -681,7 +681,7 @@ async fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
 
     // Re-resolve
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
 
     for dep in &resolved {
         let locked = LockedPackage {
@@ -698,7 +698,7 @@ async fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
 
     // Fetch updated packages
     let cache = cache_dir();
-    hut::fetcher::install_dependencies(&config, &lockfile, &cache).await?;
+    hut::fetcher::install_dependencies(&config, &lockfile, &cache)?;
 
     println!("{} dependencies updated.", "Updated".green().bold());
 
@@ -706,11 +706,11 @@ async fn cmd_update(pkg: Option<&str>) -> HutResult<()> {
 }
 
 /// 7. `hut outdated`
-async fn cmd_outdated() -> HutResult<()> {
+fn cmd_outdated() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(None)?;
 
     let mut found_outdated = false;
 
@@ -756,7 +756,7 @@ async fn cmd_outdated() -> HutResult<()> {
 }
 
 /// 8. `hut build [--release] [--compiler <auto|gcc|clang>]`
-async fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<()> {
+fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
 
     // ── Compiler selection ───────────────────────────────────────────────
@@ -838,18 +838,18 @@ async fn cmd_build(release: bool, compiler_override: Option<&str>) -> HutResult<
     {
         vec![]
     } else {
-        let registry = registry::fetch_registry(None).await?;
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?
+        let registry = registry::fetch_registry(None)?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?
     };
 
     // ── Build the project ────────────────────────────────────────────────
-    hut::builder::build_project(&config, &resolved, release).await?;
+    hut::builder::build_project(&config, &resolved, release)?;
 
     Ok(())
 }
 
 /// 9. `hut run [target] [--release]`
-async fn cmd_run(
+fn cmd_run(
     target: Option<String>,
     args: Vec<String>,
     release: bool,
@@ -945,11 +945,11 @@ async fn cmd_run(
     {
         vec![]
     } else {
-        let registry = registry::fetch_registry(None).await?;
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?
+        let registry = registry::fetch_registry(None)?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?
     };
 
-    hut::builder::build_project(&config, &resolved, release).await?;
+    hut::builder::build_project(&config, &resolved, release)?;
 
     // Determine the binary to run
     let profile = if release { "release" } else { "debug" };
@@ -1012,17 +1012,17 @@ async fn cmd_run(
 }
 
 /// 10. `hut test`
-async fn cmd_test() -> HutResult<()> {
+fn cmd_test() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
 
     // Reuse the builder — for now, just build the project
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(None)?;
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
 
-    hut::builder::build_project(&config, &resolved, false).await?;
+    hut::builder::build_project(&config, &resolved, false)?;
 
     println!();
     println!(
@@ -1035,12 +1035,12 @@ async fn cmd_test() -> HutResult<()> {
 }
 
 /// 11. `hut x <pkg> [args...]`
-async fn cmd_x(pkg: &str, args: &[String]) -> HutResult<()> {
-    hut::fetcher::fetch_and_run(pkg, args).await
+fn cmd_x(pkg: &str, args: &[String]) -> HutResult<()> {
+    hut::fetcher::fetch_and_run(pkg, args)
 }
 
 /// 12. `hut link [path]`
-async fn cmd_link(path: Option<&str>) -> HutResult<()> {
+fn cmd_link(path: Option<&str>) -> HutResult<()> {
     let link_path = path
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
@@ -1092,7 +1092,7 @@ async fn cmd_link(path: Option<&str>) -> HutResult<()> {
 }
 
 /// 13. `hut unlink <pkg>`
-async fn cmd_unlink(pkg: &str) -> HutResult<()> {
+fn cmd_unlink(pkg: &str) -> HutResult<()> {
     let link_target = packages_dir().join(pkg).join("linked");
 
     if !link_target.exists() && !link_target.is_symlink() {
@@ -1111,7 +1111,7 @@ async fn cmd_unlink(pkg: &str) -> HutResult<()> {
 }
 
 /// 14. `hut publish`
-async fn cmd_publish() -> HutResult<()> {
+fn cmd_publish() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
 
     println!("{}", "Publishing guide:".bold().underline());
@@ -1141,7 +1141,7 @@ async fn cmd_publish() -> HutResult<()> {
 }
 
 /// 15. `hut pm <subcommand>`
-async fn cmd_pm(sub: PmCommand) -> HutResult<()> {
+fn cmd_pm(sub: PmCommand) -> HutResult<()> {
     match sub {
         PmCommand::Cache => {
             let cache = cache_dir();
@@ -1201,7 +1201,7 @@ async fn cmd_pm(sub: PmCommand) -> HutResult<()> {
 }
 
 /// 16. `hut upgrade`
-async fn cmd_upgrade() -> HutResult<()> {
+fn cmd_upgrade() -> HutResult<()> {
     use std::process::Command;
 
     let current_version = env!("CARGO_PKG_VERSION");
@@ -1307,7 +1307,7 @@ fn get_hut_version(source_dir: &Path) -> HutResult<String> {
 }
 
 /// 17. `hut patch <pkg>`
-async fn cmd_patch(pkg: &str) -> HutResult<()> {
+fn cmd_patch(pkg: &str) -> HutResult<()> {
     let (_config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
@@ -1320,7 +1320,7 @@ async fn cmd_patch(pkg: &str) -> HutResult<()> {
 
     let cache = cache_dir();
     let pkg_dir =
-        hut::fetcher::fetch_package(pkg, &locked.resolved, &locked.version, &cache).await?;
+        hut::fetcher::fetch_package(pkg, &locked.resolved, &locked.version, &cache)?;
 
     println!("{}", "Patch mode:".bold().underline());
     println!();
@@ -1343,7 +1343,7 @@ async fn cmd_patch(pkg: &str) -> HutResult<()> {
 }
 
 /// 18. `hut info`
-async fn cmd_info() -> HutResult<()> {
+fn cmd_info() -> HutResult<()> {
     let (config, config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
@@ -1419,7 +1419,7 @@ async fn cmd_info() -> HutResult<()> {
 }
 
 /// 19. `hut dev`
-async fn cmd_dev() -> HutResult<()> {
+fn cmd_dev() -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
 
     println!("{}", "Dev mode (watch + rebuild)".bold().underline());
@@ -1429,11 +1429,11 @@ async fn cmd_dev() -> HutResult<()> {
     // Build once
     let lock_path = lockfile_path();
     let lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(None)?;
     let resolved =
-        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir()).await?;
+        hut::resolver::resolve_dependencies(&config, &lockfile, &registry, &packages_dir())?;
 
-    hut::builder::build_project(&config, &resolved, false).await?;
+    hut::builder::build_project(&config, &resolved, false)?;
 
     println!();
     println!(
@@ -1447,7 +1447,7 @@ async fn cmd_dev() -> HutResult<()> {
     let mut last_build = SystemTime::now();
 
     loop {
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        std::thread::sleep(Duration::from_secs(1));
 
         let mut files_changed = false;
         let walker = walkdir::WalkDir::new(&project_root)
@@ -1474,7 +1474,7 @@ async fn cmd_dev() -> HutResult<()> {
             println!("{} File changed, rebuilding...", "⚡".yellow().bold());
             last_build = SystemTime::now();
 
-            match hut::builder::build_project(&config, &resolved, false).await {
+            match hut::builder::build_project(&config, &resolved, false) {
                 Ok(()) => {
                     println!("{} Build succeeded.", "✓".green().bold());
                 }
@@ -1487,7 +1487,7 @@ async fn cmd_dev() -> HutResult<()> {
 }
 
 /// 20. `hut workspace <subcommand>`
-async fn cmd_workspace(sub: WorkspaceCommand) -> HutResult<()> {
+fn cmd_workspace(sub: WorkspaceCommand) -> HutResult<()> {
     match sub {
         WorkspaceCommand::Add { path } => {
             let (mut config, config_path) = HutConfig::find()?;
@@ -1572,7 +1572,7 @@ async fn cmd_workspace(sub: WorkspaceCommand) -> HutResult<()> {
 }
 
 /// 21. `hut completions <shell>`
-async fn cmd_completions(shell: &str) -> HutResult<()> {
+fn cmd_completions(shell: &str) -> HutResult<()> {
     let sh = match shell.to_lowercase().as_str() {
         "bash" => Shell::Bash,
         "zsh" => Shell::Zsh,
@@ -1596,8 +1596,8 @@ async fn cmd_completions(shell: &str) -> HutResult<()> {
 }
 
 /// 22. `hut search <query>`
-async fn cmd_search(query: &str) -> HutResult<()> {
-    let registry = registry::fetch_registry(None).await?;
+fn cmd_search(query: &str) -> HutResult<()> {
+    let registry = registry::fetch_registry(None)?;
     let results = registry.search(query);
 
     if results.is_empty() {
@@ -1643,7 +1643,7 @@ async fn cmd_search(query: &str) -> HutResult<()> {
 }
 
 /// 23. `hut fmt [--check]` — format C/C++ source files with clang-format
-async fn cmd_fmt(check: bool) -> HutResult<()> {
+fn cmd_fmt(check: bool) -> HutResult<()> {
     if !command_exists("clang-format") {
         return Err(HutError::Other(
             "clang-format not found. Install it:\n  • Ubuntu/Debian:  sudo apt install clang-format\n  • macOS:          brew install clang-format\n  • Arch:           sudo pacman -S clang".into(),
@@ -1747,7 +1747,7 @@ async fn cmd_fmt(check: bool) -> HutResult<()> {
 }
 
 /// 24. `hut lint` — lint C/C++ source files
-async fn cmd_lint() -> HutResult<()> {
+fn cmd_lint() -> HutResult<()> {
     let project_root = find_project_root()?;
     let (config, _config_path) = HutConfig::find()?;
     let compiler = config.build.compiler.as_str();
@@ -1821,7 +1821,7 @@ async fn cmd_lint() -> HutResult<()> {
 }
 
 /// 25. `hut clean` — remove build artifacts (target/)
-async fn cmd_clean() -> HutResult<()> {
+fn cmd_clean() -> HutResult<()> {
     let project_root = find_project_root()?;
     let target_dir = project_root.join("target");
 

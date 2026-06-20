@@ -75,7 +75,7 @@ fn registry_cache_dir() -> PathBuf {
 
 /// Fetch the registry index from the given URL (or the default).
 /// Results are cached locally at `~/.hut/registry/index.json`.
-pub async fn fetch_registry(url: Option<&str>) -> HutResult<RegistryIndex> {
+pub fn fetch_registry(url: Option<&str>) -> HutResult<RegistryIndex> {
     let url = url.unwrap_or(DEFAULT_REGISTRY);
 
     let cache_dir = registry_cache_dir();
@@ -104,18 +104,10 @@ pub async fn fetch_registry(url: Option<&str>) -> HutResult<RegistryIndex> {
         std::fs::read_to_string(path)
             .map_err(|e| HutError::Registry(format!("Failed to read registry file {path}: {e}")))?
     } else {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
-
-        let resp = client.get(url).send().await?;
-        if !resp.status().is_success() {
-            return Err(HutError::Registry(format!(
-                "Failed to fetch registry index: HTTP {}",
-                resp.status()
-            )));
-        }
-        resp.text().await?
+        let bytes = crate::http::http_get(url)
+            .map_err(|e| HutError::Registry(format!("Failed to fetch registry: {e}")))?;
+        String::from_utf8(bytes)
+            .map_err(|e| HutError::Registry(format!("Registry response is not valid UTF-8: {e}")))?
     };
     let index: RegistryIndex = serde_json::from_str(&body)
         .map_err(|e| HutError::Registry(format!("Invalid registry index JSON: {e}")))?;
@@ -129,7 +121,7 @@ pub async fn fetch_registry(url: Option<&str>) -> HutResult<RegistryIndex> {
 /// Fetch package metadata by cloning a git repository at a specific tag and
 /// reading its `hut.toml`.  The clone is placed in a cache directory under
 /// `~/.hut/packages/<name>/<version>/`.
-pub async fn fetch_package_metadata(repo_url: &str, version: &str) -> HutResult<Package> {
+pub fn fetch_package_metadata(repo_url: &str, version: &str) -> HutResult<Package> {
     let cache_dir = dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".hut")

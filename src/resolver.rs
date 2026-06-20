@@ -22,7 +22,7 @@ use crate::registry::{self, RegistryIndex, resolve_version};
 /// * `registry` — the package registry index.
 /// * `cache_dir`— where cloned package sources live
 ///   (usually `~/.hut/packages`).
-pub async fn resolve_dependencies(
+pub fn resolve_dependencies(
     config: &HutConfig,
     lockfile: &Lockfile,
     registry: &RegistryIndex,
@@ -46,7 +46,7 @@ pub async fn resolve_dependencies(
             continue; // already resolved
         }
 
-        let (resolved, transitive) = ctx.resolve_one_package(&name, &constraint).await?;
+        let (resolved, transitive) = ctx.resolve_one_package(&name, &constraint)?;
 
         ctx.packages
             .insert(name.clone(), Arc::new(Mutex::new(resolved)));
@@ -105,7 +105,7 @@ impl<'a> ResolveContext<'a> {
     ///
     /// Returns the resolved dependency and a list of transitive
     /// (name, constraint) pairs that still need resolving.
-    async fn resolve_one_package(
+    fn resolve_one_package(
         &mut self,
         name: &str,
         constraint: &str,
@@ -174,7 +174,7 @@ impl<'a> ResolveContext<'a> {
             .get(&target_version)
             .ok_or_else(|| HutError::VersionNotFound(name.to_string(), target_version.clone()))?;
 
-        let pkg = registry::fetch_package_metadata(&entry.repository, &version_info.r#ref).await?;
+        let pkg = registry::fetch_package_metadata(&entry.repository, &version_info.r#ref)?;
 
         let pkg_path = self
             .cache_dir

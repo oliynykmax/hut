@@ -6,7 +6,7 @@ pub enum HutError {
     Io(#[from] std::io::Error),
 
     #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(String),
 
     #[error("TOML parse error: {0}")]
     Toml(#[from] toml::de::Error),

@@ -18,6 +18,7 @@ pub mod package;
 pub mod registry;
 
 // Heavy implementation modules — to be filled by agents
+pub mod http;
 pub mod builder;
 pub mod fetcher;
 pub mod include;
