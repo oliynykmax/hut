@@ -16,4 +16,5 @@ pub use config::HutConfig;
 pub use error::{HutError, HutResult};
 pub use lockfile::Lockfile;
 pub use package::Package;
+pub use package::default_includes;
 pub use registry::RegistryIndex;

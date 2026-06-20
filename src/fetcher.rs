@@ -507,6 +507,10 @@ pub async fn fetch_package_verified(
     let path = fetch_package(name, repo_url, version, cache_dir).await?;
 
     if let Some(locked) = locked {
+        if locked.integrity.is_empty() {
+            // No integrity hash in lockfile — skip verification
+            return Ok(path);
+        }
         let actual = hash_directory(&path)?;
         if actual != locked.integrity {
             return Err(HutError::Other(format!(

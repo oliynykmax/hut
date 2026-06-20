@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use crate::config::HutConfig;
 use crate::error::{HutError, HutResult};
 use crate::package::Package;
 
@@ -97,20 +98,25 @@ pub async fn fetch_registry(url: Option<&str>) -> HutResult<RegistryIndex> {
         }
     }
 
-    // Download fresh index.
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()?;
+    // Download fresh index (or read local file).
+    let body = if url.starts_with("file://") {
+        let path = url.strip_prefix("file://").unwrap_or(url);
+        std::fs::read_to_string(path)
+            .map_err(|e| HutError::Registry(format!("Failed to read registry file {path}: {e}")))?
+    } else {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?;
 
-    let resp = client.get(url).send().await?;
-    if !resp.status().is_success() {
-        return Err(HutError::Registry(format!(
-            "Failed to fetch registry index: HTTP {}",
-            resp.status()
-        )));
-    }
-
-    let body = resp.text().await?;
+        let resp = client.get(url).send().await?;
+        if !resp.status().is_success() {
+            return Err(HutError::Registry(format!(
+                "Failed to fetch registry index: HTTP {}",
+                resp.status()
+            )));
+        }
+        resp.text().await?
+    };
     let index: RegistryIndex = serde_json::from_str(&body)
         .map_err(|e| HutError::Registry(format!("Invalid registry index JSON: {e}")))?;
 
@@ -167,7 +173,28 @@ pub async fn fetch_package_metadata(repo_url: &str, version: &str) -> HutResult<
         }
 
         let manifest = std::fs::read_to_string(&manifest_path)?;
-        let pkg: Package = toml::from_str(&manifest)?;
+        let cfg: HutConfig = toml::from_str(&manifest)?;
+        let pkg = Package {
+            name: cfg.package.name,
+            version: cfg.package.version,
+            description: cfg.package.description,
+            authors: cfg.package.authors,
+            license: cfg.package.license,
+            repository: Some(repo_url.to_string()),
+            homepage: cfg.package.homepage,
+            sources: cfg.package.sources,
+            includes: cfg.package.includes,
+            dependencies: cfg.dependencies,
+            build_dependencies: cfg.build_dependencies,
+            test_dependencies: cfg.test_dependencies,
+            build: cfg.build,
+            scripts: cfg.scripts,
+            libraries: vec![],
+            executables: vec![],
+            tests: vec![],
+            cflags: vec![],
+            ldflags: vec![],
+        };
 
         // Move tmp -> pkg_dir.
         if pkg_dir.exists() {
@@ -180,7 +207,28 @@ pub async fn fetch_package_metadata(repo_url: &str, version: &str) -> HutResult<
 
     // Already cached — just read hut.toml.
     let manifest = std::fs::read_to_string(pkg_dir.join("hut.toml"))?;
-    let pkg: Package = toml::from_str(&manifest)?;
+    let cfg: HutConfig = toml::from_str(&manifest)?;
+    let pkg = Package {
+        name: cfg.package.name,
+        version: cfg.package.version,
+        description: cfg.package.description,
+        authors: cfg.package.authors,
+        license: cfg.package.license,
+        repository: Some(repo_url.to_string()),
+        homepage: cfg.package.homepage,
+        sources: cfg.package.sources,
+        includes: cfg.package.includes,
+        dependencies: cfg.dependencies,
+        build_dependencies: cfg.build_dependencies,
+        test_dependencies: cfg.test_dependencies,
+        build: cfg.build,
+        scripts: cfg.scripts,
+        libraries: vec![],
+        executables: vec![],
+        tests: vec![],
+        cflags: vec![],
+        ldflags: vec![],
+    };
     Ok(pkg)
 }
 
@@ -188,13 +236,8 @@ pub async fn fetch_package_metadata(repo_url: &str, version: &str) -> HutResult<
 fn sanitise_repo_name(url: &str) -> String {
     // Extract the last path component, strip ".git", keep only alphanumeric
     // and a few safe characters.
-    let stem = url
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or(url)
-        .strip_suffix(".git")
-        .unwrap_or(url);
+    let raw = url.trim_end_matches('/').rsplit('/').next().unwrap_or(url);
+    let stem = raw.strip_suffix(".git").unwrap_or(raw);
 
     stem.chars()
         .map(|c| {

@@ -677,14 +677,16 @@ pub async fn build_project(
 
     let build_system = detect_build_system(config, &project_root);
 
+    let profile_color = if release { colored::Color::Yellow } else { colored::Color::BrightBlue };
     let profile_name = if release { "release" } else { "debug" };
+    let build_start = std::time::Instant::now();
 
     println!(
-        "{} [{}] {} v{}",
+        "{} [{profile}] {} v{}",
         "   Building".bold().cyan(),
-        profile_name.bold(),
-        config.package.name.bold().white(),
-        config.package.version.dimmed()
+        config.package.name.bold(),
+        config.package.version.dimmed(),
+        profile = profile_name.color(profile_color).bold()
     );
 
     match build_system {
@@ -701,19 +703,23 @@ pub async fn build_project(
     }
 
     let out_dir = output_dir(&project_root, release);
+    let binary = out_dir.join(&config.package.name);
+    let elapsed = build_start.elapsed();
 
     println!(
-        "{} {} target(s) in {:.2}s",
+        "{} [{profile}] target(s) in {:.2}s",
         "    Finished".bold().green(),
-        profile_name.dimmed(),
-        0.0 // TODO: track actual build time
+        elapsed.as_secs_f64(),
+        profile = profile_name.color(profile_color).bold()
     );
 
-    println!(
-        "  {} {}",
-        "Output:".dimmed(),
-        out_dir.display().to_string().bold()
-    );
+    if binary.exists() {
+        println!(
+            "  {} {}",
+            "Binary:".dimmed(),
+            binary.display().to_string().bold()
+        );
+    }
 
     Ok(())
 }

@@ -79,7 +79,11 @@ enum Commands {
 
     /// Install all dependencies (resolves + fetches, writes lockfile)
     #[command(alias = "i")]
-    Install,
+    Install {
+        /// Custom registry URL
+        #[arg(long)]
+        registry: Option<String>,
+    },
 
     /// Add a dependency and install it
     #[command(alias = "a")]
@@ -92,6 +96,9 @@ enum Commands {
         /// Add as a build dependency
         #[arg(long)]
         build: bool,
+        /// Custom registry URL
+        #[arg(long)]
+        registry: Option<String>,
     },
 
     /// Remove a dependency
@@ -242,8 +249,8 @@ async fn main() {
     let result = match cli.command {
         Commands::Init { name } => cmd_init(name).await,
         Commands::Create { template } => cmd_create(&template).await,
-        Commands::Install => cmd_install().await,
-        Commands::Add { pkg, dev, build } => cmd_add(&pkg, dev, build).await,
+        Commands::Install { registry } => cmd_install(registry.as_deref()).await,
+        Commands::Add { pkg, dev, build, registry } => cmd_add(&pkg, dev, build, registry.as_deref()).await,
         Commands::Remove { pkg } => cmd_remove(&pkg).await,
         Commands::Update { pkg } => cmd_update(pkg.as_deref()).await,
         Commands::Outdated => cmd_outdated().await,
@@ -427,7 +434,7 @@ async fn cmd_create(template: &str) -> HutResult<()> {
 }
 
 /// 3. `hut install`
-async fn cmd_install() -> HutResult<()> {
+async fn cmd_install(registry_url: Option<&str>) -> HutResult<()> {
     let (config, _config_path) = HutConfig::find()?;
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
@@ -441,7 +448,7 @@ async fn cmd_install() -> HutResult<()> {
     }
 
     // Fetch the registry for resolution
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(registry_url).await?;
     let cache = cache_dir();
 
     // Resolve all dependencies
@@ -476,7 +483,7 @@ async fn cmd_install() -> HutResult<()> {
 }
 
 /// 4. `hut add <pkg> [--dev] [--build]`
-async fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
+async fn cmd_add(pkg_spec: &str, dev: bool, build: bool, registry_url: Option<&str>) -> HutResult<()> {
     let (mut config, config_path) = HutConfig::find()?;
 
     // Parse package name and optional version constraint
@@ -522,7 +529,7 @@ async fn cmd_add(pkg_spec: &str, dev: bool, build: bool) -> HutResult<()> {
     // Now install
     let lock_path = lockfile_path();
     let mut lockfile = Lockfile::load(&lock_path)?;
-    let registry = registry::fetch_registry(None).await?;
+    let registry = registry::fetch_registry(registry_url).await?;
     let cache = cache_dir();
 
     // Resolve all dependencies

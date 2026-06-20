@@ -36,6 +36,14 @@ pub struct PackageMeta {
     /// "c" or "c++"
     #[serde(default = "default_lang")]
     pub language: String,
+    #[serde(default)]
+    pub repository: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub sources: Vec<String>,
+    #[serde(default = "crate::package::default_includes")]
+    pub includes: Vec<String>,
 }
 
 fn default_lang() -> String {
@@ -82,6 +90,10 @@ impl HutConfig {
                 authors: vec![],
                 license: Some("MIT".to_string()),
                 language: "c".to_string(),
+                repository: None,
+                homepage: None,
+                sources: vec![],
+                includes: vec!["include".to_string()],
             },
             dependencies: BTreeMap::new(),
             build_dependencies: BTreeMap::new(),

@@ -338,13 +338,8 @@ fn dedup_vec<T: Eq + std::hash::Hash + Clone>(v: Vec<T>) -> Vec<T> {
 
 /// Turn a git URL into a safe directory name.
 fn sanitise_repo_name(url: &str) -> String {
-    let stem = url
-        .trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or(url)
-        .strip_suffix(".git")
-        .unwrap_or(url);
+    let raw = url.trim_end_matches('/').rsplit('/').next().unwrap_or(url);
+    let stem = raw.strip_suffix(".git").unwrap_or(raw);
 
     stem.chars()
         .map(|c| {

@@ -62,7 +62,7 @@ pub struct Package {
     pub ldflags: Vec<String>,
 }
 
-fn default_includes() -> Vec<String> {
+pub fn default_includes() -> Vec<String> {
     vec!["include".to_string()]
 }
 
