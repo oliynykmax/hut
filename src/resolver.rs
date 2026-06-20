@@ -351,3 +351,258 @@ fn sanitise_repo_name(url: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // version_satisfies tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn exact_version_match() {
+        assert!(version_satisfies("1.2.3", "1.2.3").unwrap());
+    }
+
+    #[test]
+    fn exact_version_mismatch() {
+        assert!(!version_satisfies("1.2.3", "1.2.4").unwrap());
+    }
+
+    #[test]
+    fn equals_constraint() {
+        assert!(version_satisfies("1.0.0", "=1.0.0").unwrap());
+        assert!(!version_satisfies("1.0.1", "=1.0.0").unwrap());
+    }
+
+    #[test]
+    fn caret_constraint() {
+        // ^1.2.3 means >=1.2.3, <2.0.0
+        assert!(version_satisfies("1.2.3", "^1.2.3").unwrap());
+        assert!(version_satisfies("1.9.0", "^1.2.3").unwrap());
+        assert!(!version_satisfies("2.0.0", "^1.2.3").unwrap());
+        assert!(!version_satisfies("0.1.0", "^1.2.3").unwrap());
+    }
+
+    #[test]
+    fn caret_zero_major() {
+        // ^0.2.3 means >=0.2.3, <0.3.0
+        assert!(version_satisfies("0.2.3", "^0.2.3").unwrap());
+        assert!(version_satisfies("0.2.9", "^0.2.3").unwrap());
+        assert!(!version_satisfies("0.3.0", "^0.2.3").unwrap());
+    }
+
+    #[test]
+    fn tilde_constraint() {
+        // ~1.2.3 means >=1.2.3, <1.3.0
+        assert!(version_satisfies("1.2.3", "~1.2.3").unwrap());
+        assert!(version_satisfies("1.2.9", "~1.2.3").unwrap());
+        assert!(!version_satisfies("1.3.0", "~1.2.3").unwrap());
+    }
+
+    #[test]
+    fn tilde_minor_only() {
+        // ~1.2 means >=1.2.0, <1.3.0
+        assert!(version_satisfies("1.2.0", "~1.2").unwrap());
+        assert!(version_satisfies("1.2.5", "~1.2").unwrap());
+        assert!(!version_satisfies("1.3.0", "~1.2").unwrap());
+    }
+
+    #[test]
+    fn greater_than_constraint() {
+        assert!(version_satisfies("2.0.0", ">1.0.0").unwrap());
+        assert!(!version_satisfies("1.0.0", ">1.0.0").unwrap());
+        assert!(!version_satisfies("0.9.0", ">1.0.0").unwrap());
+    }
+
+    #[test]
+    fn greater_than_or_equal() {
+        assert!(version_satisfies("1.0.0", ">=1.0.0").unwrap());
+        assert!(version_satisfies("2.0.0", ">=1.0.0").unwrap());
+        assert!(!version_satisfies("0.9.0", ">=1.0.0").unwrap());
+    }
+
+    #[test]
+    fn less_than_constraint() {
+        assert!(version_satisfies("0.9.0", "<1.0.0").unwrap());
+        assert!(!version_satisfies("1.0.0", "<1.0.0").unwrap());
+        assert!(!version_satisfies("1.1.0", "<1.0.0").unwrap());
+    }
+
+    #[test]
+    fn less_than_or_equal() {
+        assert!(version_satisfies("1.0.0", "<=1.0.0").unwrap());
+        assert!(version_satisfies("0.9.0", "<=1.0.0").unwrap());
+        assert!(!version_satisfies("1.1.0", "<=1.0.0").unwrap());
+    }
+
+    #[test]
+    fn wildcard_star_constraint() {
+        assert!(version_satisfies("1.0.0", "*").unwrap());
+        assert!(version_satisfies("0.0.1", "*").unwrap());
+        assert!(version_satisfies("999.999.999", "*").unwrap());
+    }
+
+    #[test]
+    fn compound_constraint() {
+        // >=1.5.0, <2.0.0
+        assert!(version_satisfies("1.5.0", ">=1.5.0, <2.0.0").unwrap());
+        assert!(version_satisfies("1.9.9", ">=1.5.0, <2.0.0").unwrap());
+        assert!(!version_satisfies("1.4.9", ">=1.5.0, <2.0.0").unwrap());
+        assert!(!version_satisfies("2.0.0", ">=1.5.0, <2.0.0").unwrap());
+    }
+
+    #[test]
+    fn bare_version_is_exact() {
+        // Bare "1.2.3" is treated as "=1.2.3"
+        assert!(version_satisfies("1.2.3", "1.2.3").unwrap());
+        assert!(!version_satisfies("1.2.4", "1.2.3").unwrap());
+    }
+
+    #[test]
+    fn pre_release_versions() {
+        assert!(version_satisfies("1.0.0-alpha.1", ">=1.0.0-alpha").unwrap());
+        assert!(version_satisfies("1.0.0", ">=1.0.0-alpha").unwrap());
+    }
+
+    #[test]
+    fn invalid_version_returns_error() {
+        let result = version_satisfies("not-a-version", ">=1.0");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), HutError::Semver(_)));
+    }
+
+    #[test]
+    fn invalid_constraint_returns_error() {
+        let result = version_satisfies("1.0.0", "not-a-constraint!!!");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), HutError::Resolution(_)));
+    }
+
+    #[test]
+    fn version_with_build_metadata() {
+        // semver should handle build metadata
+        assert!(version_satisfies("1.0.0+build.1", ">=1.0.0").unwrap());
+    }
+
+    // -----------------------------------------------------------------------
+    // dedup_vec tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn dedup_empty() {
+        let v: Vec<i32> = vec![];
+        let result: Vec<i32> = dedup_vec(v);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn dedup_no_duplicates() {
+        let v = vec![1, 2, 3];
+        assert_eq!(dedup_vec(v), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn dedup_with_duplicates() {
+        let v = vec![1, 2, 2, 3, 1, 4, 3];
+        assert_eq!(dedup_vec(v), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn dedup_all_same() {
+        let v = vec!["a", "a", "a"];
+        assert_eq!(dedup_vec(v), vec!["a"]);
+    }
+
+    #[test]
+    fn dedup_preserves_order() {
+        let v = vec!["c", "a", "b", "a", "c", "d"];
+        assert_eq!(dedup_vec(v), vec!["c", "a", "b", "d"]);
+    }
+
+    #[test]
+    fn dedup_strings() {
+        let v = vec!["hello".to_string(), "world".to_string(), "hello".to_string()];
+        assert_eq!(dedup_vec(v), vec!["hello".to_string(), "world".to_string()]);
+    }
+
+    // -----------------------------------------------------------------------
+    // sanitise_repo_name tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn sanitise_github_url() {
+        let name = sanitise_repo_name("https://github.com/user/repo.git");
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn sanitise_url_without_git_suffix() {
+        let name = sanitise_repo_name("https://github.com/user/repo");
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn sanitise_url_with_trailing_slash() {
+        let name = sanitise_repo_name("https://github.com/user/repo/");
+        assert_eq!(name, "repo");
+    }
+
+    #[test]
+    fn sanitise_git_ssh_url() {
+        let name = sanitise_repo_name("git@github.com:user/my-package.git");
+        assert_eq!(name, "my-package");
+    }
+
+    #[test]
+    fn sanitise_plain_name() {
+        let name = sanitise_repo_name("mylib");
+        assert_eq!(name, "mylib");
+    }
+
+    #[test]
+    fn sanitise_special_chars() {
+        let name = sanitise_repo_name("https://example.com/user/repo@name.git");
+        assert_eq!(name, "repo_name");
+    }
+
+    #[test]
+    fn sanitise_hyphens_and_underscores() {
+        let name = sanitise_repo_name("https://github.com/user/my_lib-utils");
+        assert_eq!(name, "my_lib-utils");
+    }
+
+    #[test]
+    fn sanitise_empty_url_uses_raw() {
+        // Empty string is handled: rsplit('/').next() gives ""
+        let name = sanitise_repo_name("");
+        assert_eq!(name, "");
+    }
+
+    // -----------------------------------------------------------------------
+    // version_satisfies edge cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn caret_zero_zero_version() {
+        // ^0.0.3 means >=0.0.3, <0.0.4
+        assert!(version_satisfies("0.0.3", "^0.0.3").unwrap());
+        assert!(!version_satisfies("0.0.4", "^0.0.3").unwrap());
+    }
+
+    #[test]
+    fn multiple_version_ranges() {
+        // >=1.0, <1.5 || >=2.0, <2.5 — semver doesn't support || directly
+        // but we test individual range components
+        assert!(version_satisfies("1.3.0", ">=1.0.0, <1.5.0").unwrap());
+        assert!(version_satisfies("2.3.0", ">=2.0.0, <2.5.0").unwrap());
+    }
+
+    #[test]
+    fn exact_constraint_with_patch() {
+        // "=1.2" should match 1.2.x
+        assert!(version_satisfies("1.2.0", "=1.2").unwrap());
+        assert!(version_satisfies("1.2.5", "=1.2").unwrap());
+    }
+}

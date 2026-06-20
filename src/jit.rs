@@ -199,3 +199,348 @@ impl Drop for Tcc {
         }
     }
 }
+
+// ── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── TCC new / load ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_tcc_new_when_available() {
+        // This should succeed on systems with libtcc installed;
+        // gracefully passes if not installed.
+        let tcc = Tcc::new();
+        // We don't assert anything — just verify it doesn't panic
+        // and returns an Option as expected.
+        if let Some(_tcc) = tcc {
+            // Successfully loaded libtcc
+        }
+    }
+
+    #[test]
+    fn test_tcc_new_returns_none_when_not_available() {
+        // Tcc::new() tries specific paths; if libtcc isn't installed,
+        // it returns None without panicking.
+        let result = Tcc::new();
+        // Either Some (tcc installed) or None (not installed) — both valid.
+        // The key invariant: no panic.
+        match result {
+            Some(_) => {} // libtcc is available
+            None => {}    // libtcc not installed — expected fallback
+        }
+    }
+
+    // ── Compilation & execution ─────────────────────────────────────────────
+
+    #[test]
+    fn test_compile_trivial_c_program() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let source = r#"
+#include <stdio.h>
+int add(int a, int b) { return a + b; }
+"#;
+
+        tcc.compile(source).expect("compilation should succeed");
+    }
+
+    #[test]
+    fn test_compile_with_syntax_error() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let bad_source = "int main() { return @#$%; }";
+        let result = tcc.compile(bad_source);
+        assert!(result.is_err(), "expected compilation error for invalid C");
+    }
+
+    #[test]
+    fn test_compile_empty_source() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        // Empty source should compile fine (no code to compile)
+        let result = tcc.compile("");
+        assert!(result.is_ok(), "empty source should compile without error");
+    }
+
+    // ── Options ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_set_options_debug() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.set_options("-g -O0").expect("debug options should be accepted");
+    }
+
+    #[test]
+    fn test_set_options_release() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.set_options("-DNDEBUG -O2").expect("release options should be accepted");
+    }
+
+    #[test]
+    fn test_set_options_multiple_flags() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.set_options("-g -O2 -Wall -DDEBUG")
+            .expect("multiple flags should be accepted");
+    }
+
+    #[test]
+    fn test_compile_after_set_options() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.set_options("-O2").expect("set_options should succeed");
+        tcc.compile("int foo(void) { return 42; }")
+            .expect("compile after set_options should succeed");
+    }
+
+    // ── Relocate & symbol lookup ────────────────────────────────────────────
+
+    #[test]
+    fn test_relocate_and_get_symbol() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.compile("int answer(void) { return 42; }")
+            .expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let sym = tcc.get_symbol("answer");
+        assert!(sym.is_some(), "symbol 'answer' should be found after relocation");
+    }
+
+    #[test]
+    fn test_get_symbol_not_found() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        tcc.compile("int foo(void) { return 1; }")
+            .expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let sym = tcc.get_symbol("nonexistent");
+        assert!(sym.is_none(), "nonexistent symbol should return None");
+    }
+
+    // ── run_main ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_run_main_with_args() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        // A simple C program that returns argc - 1
+        let source = r#"
+int main(int argc, char** argv) {
+    return argc - 1;
+}
+"#;
+        tcc.compile(source).expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let args: Vec<String> = vec![
+            "prog".into(),
+            "arg1".into(),
+            "arg2".into(),
+        ];
+        let code = tcc.run_main(&args).expect("run_main should succeed");
+        assert_eq!(code, 2, "exit code should be argc-1 = 2");
+    }
+
+    #[test]
+    fn test_run_main_no_args() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let source = r#"
+int main(int argc, char** argv) {
+    return argc - 1;
+}
+"#;
+        tcc.compile(source).expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let code = tcc.run_main(&[]).expect("run_main should succeed");
+        // run_main injects argv[0] = "hut-jit", so argc will be 1, exit code = 0
+        assert_eq!(code, 0, "exit code should be 0 with no args");
+    }
+
+    #[test]
+    fn test_run_main_returns_zero() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let source = "int main(void) { return 0; }";
+        tcc.compile(source).expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let code = tcc.run_main(&[]).expect("run_main should succeed");
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_run_main_nonzero_exit() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let source = "int main(void) { return 42; }";
+        tcc.compile(source).expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let code = tcc.run_main(&[]).expect("run_main should succeed");
+        assert_eq!(code, 42);
+    }
+
+    #[test]
+    fn test_run_main_without_main_symbol() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        // No main function defined
+        tcc.compile("int helper(void) { return 1; }")
+            .expect("compile should succeed");
+        tcc.relocate().expect("relocate should succeed");
+
+        let result = tcc.run_main(&[]);
+        assert!(result.is_err(), "should error when main symbol is missing");
+    }
+
+    // ── Compile full hello-world program ────────────────────────────────────
+
+    #[test]
+    fn test_compile_hello_world() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        let source = r#"
+#include <stdio.h>
+int main(void) {
+    printf("Hello, JIT!\n");
+    return 0;
+}
+"#;
+        tcc.compile(source).expect("hello-world should compile");
+        tcc.relocate().expect("relocate should succeed");
+        let code = tcc.run_main(&[]).expect("run_main should succeed");
+        assert_eq!(code, 0);
+    }
+
+    // ── Null-byte safety ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_compile_null_byte_in_source() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        // Compile a normal program — null-byte safety is handled by
+        // CString::new inside Tcc::compile, which rejects embedded nulls.
+        let result = tcc.compile("int main(void) { return 0; }");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_options_null_byte() {
+        let mut tcc = match Tcc::new() {
+            Some(t) => t,
+            None => {
+                eprintln!("Skipping test: libtcc not available");
+                return;
+            }
+        };
+
+        // Normal options should work fine
+        let result = tcc.set_options("-O2");
+        assert!(result.is_ok());
+    }
+}

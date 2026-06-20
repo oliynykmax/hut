@@ -1599,3 +1599,694 @@ const LIB_SOURCE: &str = "#include \"mylib.h\"\n\nint mylib_add(int a, int b) {\
 const APP_MAIN_C: &str = "#include <stdio.h>\n\nint main(int argc, char** argv) {\n    printf(\"Hello, world!\\n\");\n    if (argc > 1) {\n        printf(\"Arguments: %d\\n\", argc - 1);\n        for (int i = 1; i < argc; i++) {\n            printf(\"  %s\\n\", argv[i]);\n        }\n    }\n    return 0;\n}\n";
 
 const RAYLIB_GAME_C: &str = "#include \"raylib.h\"\n\nint main() {\n    const int screenWidth = 800;\n    const int screenHeight = 450;\n\n    InitWindow(screenWidth, screenHeight, \"raylib game — built with hut\");\n\n    SetTargetFPS(60);\n\n    while (!WindowShouldClose()) {\n        BeginDrawing();\n        ClearBackground(RAYWHITE);\n        DrawText(\"Hello, raylib!\", 190, 200, 20, LIGHTGRAY);\n        EndDrawing();\n    }\n\n    CloseWindow();\n    return 0;\n}\n";
+
+// ── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    // ── Basic subcommands ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_init_no_name() {
+        let cli = Cli::try_parse_from(["hut", "init"]).unwrap();
+        match cli.command {
+            Commands::Init { name } => assert!(name.is_none()),
+            _ => panic!("expected Init"),
+        }
+    }
+
+    #[test]
+    fn test_parse_init_with_name() {
+        let cli = Cli::try_parse_from(["hut", "init", "myproject"]).unwrap();
+        match cli.command {
+            Commands::Init { name } => assert_eq!(name, Some("myproject".into())),
+            _ => panic!("expected Init"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_default() {
+        let cli = Cli::try_parse_from(["hut", "build"]).unwrap();
+        match cli.command {
+            Commands::Build { release, compiler } => {
+                assert!(!release);
+                assert!(compiler.is_none());
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_release_long() {
+        let cli = Cli::try_parse_from(["hut", "build", "--release"]).unwrap();
+        match cli.command {
+            Commands::Build { release, compiler } => {
+                assert!(release);
+                assert!(compiler.is_none());
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_release_short() {
+        let cli = Cli::try_parse_from(["hut", "build", "-r"]).unwrap();
+        match cli.command {
+            Commands::Build { release, .. } => assert!(release),
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_compiler_long() {
+        let cli = Cli::try_parse_from(["hut", "build", "--compiler", "gcc"]).unwrap();
+        match cli.command {
+            Commands::Build { release, compiler } => {
+                assert!(!release);
+                assert_eq!(compiler, Some("gcc".into()));
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_compiler_short() {
+        let cli = Cli::try_parse_from(["hut", "build", "-c", "clang"]).unwrap();
+        match cli.command {
+            Commands::Build { compiler, .. } => {
+                assert_eq!(compiler, Some("clang".into()));
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_release_and_compiler() {
+        let cli = Cli::try_parse_from(["hut", "build", "--release", "-c", "gcc"]).unwrap();
+        match cli.command {
+            Commands::Build { release, compiler } => {
+                assert!(release);
+                assert_eq!(compiler, Some("gcc".into()));
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    #[test]
+    fn test_parse_build_combo_flags() {
+        // -r and --compiler can be specified together in any order
+        let cli = Cli::try_parse_from(["hut", "build", "-c", "clang", "-r"]).unwrap();
+        match cli.command {
+            Commands::Build { release, compiler } => {
+                assert!(release);
+                assert_eq!(compiler, Some("clang".into()));
+            }
+            _ => panic!("expected Build"),
+        }
+    }
+
+    // ── Aliases ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_alias_b_for_build() {
+        let cli = Cli::try_parse_from(["hut", "b", "--release"]).unwrap();
+        match cli.command {
+            Commands::Build { release, .. } => assert!(release),
+            _ => panic!("expected Build alias 'b'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_i_for_install() {
+        let cli = Cli::try_parse_from(["hut", "i"]).unwrap();
+        match cli.command {
+            Commands::Install { registry } => assert!(registry.is_none()),
+            _ => panic!("expected Install alias 'i'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_i_with_registry() {
+        let cli = Cli::try_parse_from(["hut", "i", "--registry", "https://reg.example.com"]).unwrap();
+        match cli.command {
+            Commands::Install { registry } => assert_eq!(registry, Some("https://reg.example.com".into())),
+            _ => panic!("expected Install alias 'i'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_a_for_add() {
+        let cli = Cli::try_parse_from(["hut", "a", "user/pkg"]).unwrap();
+        match cli.command {
+            Commands::Add { pkg, dev, build, registry } => {
+                assert_eq!(pkg, "user/pkg");
+                assert!(!dev);
+                assert!(!build);
+                assert!(registry.is_none());
+            }
+            _ => panic!("expected Add alias 'a'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_rm_for_remove() {
+        let cli = Cli::try_parse_from(["hut", "rm", "dep"]).unwrap();
+        match cli.command {
+            Commands::Remove { pkg } => assert_eq!(pkg, "dep"),
+            _ => panic!("expected Remove alias 'rm'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_up_for_update() {
+        let cli = Cli::try_parse_from(["hut", "up"]).unwrap();
+        match cli.command {
+            Commands::Update { pkg } => assert!(pkg.is_none()),
+            _ => panic!("expected Update alias 'up'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_up_with_pkg() {
+        let cli = Cli::try_parse_from(["hut", "up", "somelib"]).unwrap();
+        match cli.command {
+            Commands::Update { pkg } => assert_eq!(pkg, Some("somelib".into())),
+            _ => panic!("expected Update alias 'up'"),
+        }
+    }
+
+    #[test]
+    fn test_alias_t_for_test() {
+        let cli = Cli::try_parse_from(["hut", "t"]).unwrap();
+        assert!(matches!(cli.command, Commands::Test));
+    }
+
+    // ── Run command ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_run_default() {
+        let cli = Cli::try_parse_from(["hut", "run"]).unwrap();
+        match cli.command {
+            Commands::Run { target, args, release, jit } => {
+                assert!(target.is_none());
+                assert!(args.is_empty());
+                assert!(!release);
+                assert!(!jit);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_with_target() {
+        let cli = Cli::try_parse_from(["hut", "run", "mytarget"]).unwrap();
+        match cli.command {
+            Commands::Run { target, .. } => assert_eq!(target, Some("mytarget".into())),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_jit() {
+        let cli = Cli::try_parse_from(["hut", "run", "--jit"]).unwrap();
+        match cli.command {
+            Commands::Run { jit, .. } => assert!(jit),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_release() {
+        let cli = Cli::try_parse_from(["hut", "run", "--release"]).unwrap();
+        match cli.command {
+            Commands::Run { release, .. } => assert!(release),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_release_short() {
+        let cli = Cli::try_parse_from(["hut", "run", "-r"]).unwrap();
+        match cli.command {
+            Commands::Run { release, .. } => assert!(release),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_with_args() {
+        let cli = Cli::try_parse_from(["hut", "run", "--", "arg1", "arg2"]).unwrap();
+        match cli.command {
+            Commands::Run { args, .. } => {
+                assert_eq!(args, vec!["arg1", "arg2"]);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_target_and_args() {
+        let cli = Cli::try_parse_from(["hut", "run", "mytarget", "--", "--flag", "value"]).unwrap();
+        match cli.command {
+            Commands::Run { target, args, .. } => {
+                assert_eq!(target, Some("mytarget".into()));
+                assert_eq!(args, vec!["--flag", "value"]);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_parse_run_jit_with_args() {
+        let cli = Cli::try_parse_from(["hut", "run", "--jit", "--", "a", "b"]).unwrap();
+        match cli.command {
+            Commands::Run { jit, args, .. } => {
+                assert!(jit);
+                assert_eq!(args, vec!["a", "b"]);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    // ── Add command ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_add_basic() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/libfoo"]).unwrap();
+        match cli.command {
+            Commands::Add { pkg, dev, build, registry } => {
+                assert_eq!(pkg, "user/libfoo");
+                assert!(!dev);
+                assert!(!build);
+                assert!(registry.is_none());
+            }
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_add_dev() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/libfoo", "--dev"]).unwrap();
+        match cli.command {
+            Commands::Add { dev, .. } => assert!(dev),
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_add_build() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/libfoo", "--build"]).unwrap();
+        match cli.command {
+            Commands::Add { build, .. } => assert!(build),
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_add_with_registry() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/pkg", "--registry", "https://r.example.com"]).unwrap();
+        match cli.command {
+            Commands::Add { registry, .. } => assert_eq!(registry, Some("https://r.example.com".into())),
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_add_dev_build_registry() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/pkg", "--dev", "--build", "--registry", "https://r.example.com"]).unwrap();
+        match cli.command {
+            Commands::Add { dev, build, registry, .. } => {
+                assert!(dev);
+                assert!(build);
+                assert_eq!(registry, Some("https://r.example.com".into()));
+            }
+            _ => panic!("expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_parse_add_with_version() {
+        let cli = Cli::try_parse_from(["hut", "add", "user/libfoo@^1.0"]).unwrap();
+        match cli.command {
+            Commands::Add { pkg, .. } => assert_eq!(pkg, "user/libfoo@^1.0"),
+            _ => panic!("expected Add"),
+        }
+    }
+
+    // ── Install command ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_install_default() {
+        let cli = Cli::try_parse_from(["hut", "install"]).unwrap();
+        match cli.command {
+            Commands::Install { registry } => assert!(registry.is_none()),
+            _ => panic!("expected Install"),
+        }
+    }
+
+    #[test]
+    fn test_parse_install_with_registry() {
+        let cli = Cli::try_parse_from(["hut", "install", "--registry", "https://r.io"]).unwrap();
+        match cli.command {
+            Commands::Install { registry } => assert_eq!(registry, Some("https://r.io".into())),
+            _ => panic!("expected Install"),
+        }
+    }
+
+    // ── Remove command ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_remove() {
+        let cli = Cli::try_parse_from(["hut", "remove", "mydep"]).unwrap();
+        match cli.command {
+            Commands::Remove { pkg } => assert_eq!(pkg, "mydep"),
+            _ => panic!("expected Remove"),
+        }
+    }
+
+    // ── Update / Outdated / Test ───────────────────────────────────────────
+
+    #[test]
+    fn test_parse_update_all() {
+        let cli = Cli::try_parse_from(["hut", "update"]).unwrap();
+        match cli.command {
+            Commands::Update { pkg } => assert!(pkg.is_none()),
+            _ => panic!("expected Update"),
+        }
+    }
+
+    #[test]
+    fn test_parse_update_single() {
+        let cli = Cli::try_parse_from(["hut", "update", "mydep"]).unwrap();
+        match cli.command {
+            Commands::Update { pkg } => assert_eq!(pkg, Some("mydep".into())),
+            _ => panic!("expected Update"),
+        }
+    }
+
+    #[test]
+    fn test_parse_outdated() {
+        let cli = Cli::try_parse_from(["hut", "outdated"]).unwrap();
+        assert!(matches!(cli.command, Commands::Outdated));
+    }
+
+    #[test]
+    fn test_parse_test() {
+        let cli = Cli::try_parse_from(["hut", "test"]).unwrap();
+        assert!(matches!(cli.command, Commands::Test));
+    }
+
+    // ── Create / X / Link / Unlink ─────────────────────────────────────────
+
+    #[test]
+    fn test_parse_create() {
+        let cli = Cli::try_parse_from(["hut", "create", "lib"]).unwrap();
+        match cli.command {
+            Commands::Create { template } => assert_eq!(template, "lib"),
+            _ => panic!("expected Create"),
+        }
+    }
+
+    #[test]
+    fn test_parse_x_pkg() {
+        let cli = Cli::try_parse_from(["hut", "x", "user/repo"]).unwrap();
+        match cli.command {
+            Commands::X { pkg, args } => {
+                assert_eq!(pkg, "user/repo");
+                assert!(args.is_empty());
+            }
+            _ => panic!("expected X"),
+        }
+    }
+
+    #[test]
+    fn test_parse_x_pkg_with_args() {
+        let cli = Cli::try_parse_from(["hut", "x", "user/repo", "--", "--help", "extra"]).unwrap();
+        match cli.command {
+            Commands::X { pkg, args } => {
+                assert_eq!(pkg, "user/repo");
+                assert_eq!(args, vec!["--help", "extra"]);
+            }
+            _ => panic!("expected X"),
+        }
+    }
+
+    #[test]
+    fn test_parse_link_default() {
+        let cli = Cli::try_parse_from(["hut", "link"]).unwrap();
+        match cli.command {
+            Commands::Link { path } => assert!(path.is_none()),
+            _ => panic!("expected Link"),
+        }
+    }
+
+    #[test]
+    fn test_parse_link_with_path() {
+        let cli = Cli::try_parse_from(["hut", "link", "/some/path"]).unwrap();
+        match cli.command {
+            Commands::Link { path } => assert_eq!(path, Some("/some/path".into())),
+            _ => panic!("expected Link"),
+        }
+    }
+
+    #[test]
+    fn test_parse_unlink() {
+        let cli = Cli::try_parse_from(["hut", "unlink", "mypkg"]).unwrap();
+        match cli.command {
+            Commands::Unlink { pkg } => assert_eq!(pkg, "mypkg"),
+            _ => panic!("expected Unlink"),
+        }
+    }
+
+    // ── Publish / Upgrade / Patch / Info / Dev / Clean ─────────────────────
+
+    #[test]
+    fn test_parse_publish() {
+        let cli = Cli::try_parse_from(["hut", "publish"]).unwrap();
+        assert!(matches!(cli.command, Commands::Publish));
+    }
+
+    #[test]
+    fn test_parse_upgrade() {
+        let cli = Cli::try_parse_from(["hut", "upgrade"]).unwrap();
+        assert!(matches!(cli.command, Commands::Upgrade));
+    }
+
+    #[test]
+    fn test_parse_patch() {
+        let cli = Cli::try_parse_from(["hut", "patch", "mypkg"]).unwrap();
+        match cli.command {
+            Commands::Patch { pkg } => assert_eq!(pkg, "mypkg"),
+            _ => panic!("expected Patch"),
+        }
+    }
+
+    #[test]
+    fn test_parse_info() {
+        let cli = Cli::try_parse_from(["hut", "info"]).unwrap();
+        assert!(matches!(cli.command, Commands::Info));
+    }
+
+    #[test]
+    fn test_parse_dev() {
+        let cli = Cli::try_parse_from(["hut", "dev"]).unwrap();
+        assert!(matches!(cli.command, Commands::Dev));
+    }
+
+    #[test]
+    fn test_parse_clean() {
+        let cli = Cli::try_parse_from(["hut", "clean"]).unwrap();
+        assert!(matches!(cli.command, Commands::Clean));
+    }
+
+    // ── Pm subcommands ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_pm_cache() {
+        let cli = Cli::try_parse_from(["hut", "pm", "cache"]).unwrap();
+        match cli.command {
+            Commands::Pm(sub) => assert!(matches!(sub, PmCommand::Cache)),
+            _ => panic!("expected Pm::Cache"),
+        }
+    }
+
+    #[test]
+    fn test_parse_pm_ls() {
+        let cli = Cli::try_parse_from(["hut", "pm", "ls"]).unwrap();
+        match cli.command {
+            Commands::Pm(sub) => assert!(matches!(sub, PmCommand::Ls)),
+            _ => panic!("expected Pm::Ls"),
+        }
+    }
+
+    #[test]
+    fn test_parse_pm_bin() {
+        let cli = Cli::try_parse_from(["hut", "pm", "bin"]).unwrap();
+        match cli.command {
+            Commands::Pm(sub) => assert!(matches!(sub, PmCommand::Bin)),
+            _ => panic!("expected Pm::Bin"),
+        }
+    }
+
+    // ── Workspace subcommands ─────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_workspace_add() {
+        let cli = Cli::try_parse_from(["hut", "workspace", "add", "/some/dir"]).unwrap();
+        match cli.command {
+            Commands::Workspace(sub) => match sub {
+                WorkspaceCommand::Add { path } => assert_eq!(path, "/some/dir"),
+                _ => panic!("expected Workspace::Add"),
+            },
+            _ => panic!("expected Workspace"),
+        }
+    }
+
+    #[test]
+    fn test_parse_workspace_ls() {
+        let cli = Cli::try_parse_from(["hut", "workspace", "ls"]).unwrap();
+        match cli.command {
+            Commands::Workspace(sub) => assert!(matches!(sub, WorkspaceCommand::Ls)),
+            _ => panic!("expected Workspace::Ls"),
+        }
+    }
+
+    #[test]
+    fn test_parse_workspace_run() {
+        let cli = Cli::try_parse_from(["hut", "workspace", "run", "build"]).unwrap();
+        match cli.command {
+            Commands::Workspace(sub) => match sub {
+                WorkspaceCommand::Run { command, args } => {
+                    assert_eq!(command, "build");
+                    assert!(args.is_empty());
+                }
+                _ => panic!("expected Workspace::Run"),
+            },
+            _ => panic!("expected Workspace"),
+        }
+    }
+
+    #[test]
+    fn test_parse_workspace_run_with_args() {
+        let cli = Cli::try_parse_from(["hut", "workspace", "run", "build", "--", "--release"]).unwrap();
+        match cli.command {
+            Commands::Workspace(sub) => match sub {
+                WorkspaceCommand::Run { command, args } => {
+                    assert_eq!(command, "build");
+                    assert_eq!(args, vec!["--release"]);
+                }
+                _ => panic!("expected Workspace::Run"),
+            },
+            _ => panic!("expected Workspace"),
+        }
+    }
+
+    // ── Completions / Search ───────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_completions() {
+        let cli = Cli::try_parse_from(["hut", "completions", "bash"]).unwrap();
+        match cli.command {
+            Commands::Completions { shell } => assert_eq!(shell, "bash"),
+            _ => panic!("expected Completions"),
+        }
+    }
+
+    #[test]
+    fn test_parse_completions_zsh() {
+        let cli = Cli::try_parse_from(["hut", "completions", "zsh"]).unwrap();
+        match cli.command {
+            Commands::Completions { shell } => assert_eq!(shell, "zsh"),
+            _ => panic!("expected Completions"),
+        }
+    }
+
+    #[test]
+    fn test_parse_search() {
+        let cli = Cli::try_parse_from(["hut", "search", "raylib"]).unwrap();
+        match cli.command {
+            Commands::Search { query } => assert_eq!(query, "raylib"),
+            _ => panic!("expected Search"),
+        }
+    }
+
+    #[test]
+    fn test_parse_search_multiple_words_rejected() {
+        // Search takes a single positional query; extra words are rejected
+        let result = Cli::try_parse_from(["hut", "search", "game", "engine"]);
+        assert!(result.is_err(), "extra positional args should be rejected");
+    }
+
+    // ── Error cases ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_unknown_subcommand() {
+        let result = Cli::try_parse_from(["hut", "nonexistent"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_missing_required_arg() {
+        // 'add' requires a package argument
+        let result = Cli::try_parse_from(["hut", "add"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_remove_missing_pkg() {
+        let result = Cli::try_parse_from(["hut", "remove"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_create_missing_template() {
+        let result = Cli::try_parse_from(["hut", "create"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_search_missing_query() {
+        let result = Cli::try_parse_from(["hut", "search"]);
+        assert!(result.is_err());
+    }
+
+    // ── Helper function tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_dep_spec_no_version() {
+        let (name, version) = parse_dep_spec("user/libfoo");
+        assert_eq!(name, "user/libfoo");
+        assert!(version.is_none());
+    }
+
+    #[test]
+    fn test_parse_dep_spec_with_version() {
+        let (name, version) = parse_dep_spec("user/libfoo@^1.0");
+        assert_eq!(name, "user/libfoo");
+        assert_eq!(version, Some("^1.0".into()));
+    }
+
+    #[test]
+    fn test_parse_dep_spec_at_only() {
+        let (name, version) = parse_dep_spec("pkg@");
+        assert_eq!(name, "pkg");
+        assert_eq!(version, Some("".into()));
+    }
+
+    #[test]
+    fn test_parse_dep_spec_just_at() {
+        let (name, version) = parse_dep_spec("@version");
+        assert_eq!(name, "");
+        assert_eq!(version, Some("version".into()));
+    }
+
+    #[test]
+    fn test_parse_dep_spec_multiple_at() {
+        let (name, version) = parse_dep_spec("user/lib@1@extra");
+        assert_eq!(name, "user/lib");
+        assert_eq!(version, Some("1@extra".into()));
+    }
+}

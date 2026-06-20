@@ -723,3 +723,408 @@ pub async fn build_project(
 
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{HutConfig, PackageMeta, WorkspaceConfig};
+    use crate::package::BuildConfig;
+    use std::collections::BTreeMap;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    fn make_test_config(name: &str) -> HutConfig {
+        HutConfig {
+            package: PackageMeta {
+                name: name.into(),
+                version: "0.1.0".into(),
+                description: None,
+                authors: vec![],
+                license: None,
+                language: "c".into(),
+                repository: None,
+                homepage: None,
+                sources: vec![],
+                includes: vec!["include".into()],
+            },
+            dependencies: BTreeMap::new(),
+            build_dependencies: BTreeMap::new(),
+            test_dependencies: BTreeMap::new(),
+            build: BuildConfig::default(),
+            scripts: BTreeMap::new(),
+            workspace: WorkspaceConfig::default(),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // is_source_file / is_c_file / is_cpp_file
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_is_source_file_c() {
+        assert!(is_source_file(Path::new("main.c")));
+        assert!(is_source_file(Path::new("src/util.c")));
+    }
+
+    #[test]
+    fn test_is_source_file_h_is_not_source() {
+        // .h and .hpp are NOT source files (they're headers)
+        assert!(!is_source_file(Path::new("header.h")));
+        assert!(!is_source_file(Path::new("header.hpp")));
+    }
+
+    #[test]
+    fn test_is_source_file_cpp_variants() {
+        assert!(is_source_file(Path::new("main.cpp")));
+        assert!(is_source_file(Path::new("main.cc")));
+        assert!(is_source_file(Path::new("main.cxx")));
+        assert!(is_source_file(Path::new("main.c++")));
+    }
+
+    #[test]
+    fn test_is_c_file_only_matches_c() {
+        assert!(is_c_file(Path::new("file.c")));
+        assert!(!is_c_file(Path::new("file.h")));
+        assert!(!is_c_file(Path::new("file.cpp")));
+        assert!(!is_c_file(Path::new("file.cc")));
+    }
+
+    #[test]
+    fn test_is_cpp_file_variants() {
+        assert!(is_cpp_file(Path::new("file.cpp")));
+        assert!(is_cpp_file(Path::new("file.cc")));
+        assert!(is_cpp_file(Path::new("file.cxx")));
+        assert!(is_cpp_file(Path::new("file.c++")));
+        assert!(!is_cpp_file(Path::new("file.c")));
+        assert!(!is_cpp_file(Path::new("file.h")));
+    }
+
+    // -----------------------------------------------------------------------
+    // collect_sources
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_collect_sources_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        // Create empty src/ directory
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        let config = make_test_config("empty");
+        let sources = collect_sources(&config, tmp.path()).unwrap();
+        assert!(sources.is_empty());
+    }
+
+    #[test]
+    fn test_collect_sources_single_c_file() {
+        let tmp = TempDir::new().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("main.c"), "int main() { return 0; }").unwrap();
+
+        let config = make_test_config("single");
+        let sources = collect_sources(&config, tmp.path()).unwrap();
+        assert_eq!(sources.len(), 1);
+        assert!(sources[0].ends_with("main.c"));
+    }
+
+    #[test]
+    fn test_collect_sources_mixed_c_and_cpp() {
+        let tmp = TempDir::new().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join("main.c"), "int main() { return 0; }").unwrap();
+        std::fs::write(src_dir.join("util.cpp"), "int util() { return 0; }").unwrap();
+        std::fs::write(src_dir.join("helper.h"), "// header").unwrap();
+
+        let config = make_test_config("mixed");
+        let sources = collect_sources(&config, tmp.path()).unwrap();
+        assert_eq!(sources.len(), 2);
+        let names: Vec<&str> = sources
+            .iter()
+            .map(|p| p.file_name().unwrap().to_str().unwrap())
+            .collect();
+        assert!(names.contains(&"main.c"));
+        assert!(names.contains(&"util.cpp"));
+    }
+
+    #[test]
+    fn test_collect_sources_nested_directories() {
+        let tmp = TempDir::new().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(src_dir.join("sub")).unwrap();
+        std::fs::write(src_dir.join("main.c"), "int main() { return 0; }").unwrap();
+        std::fs::write(src_dir.join("sub/deep.c"), "int deep() { return 0; }").unwrap();
+
+        let config = make_test_config("nested");
+        let sources = collect_sources(&config, tmp.path()).unwrap();
+        assert_eq!(sources.len(), 2);
+    }
+
+    #[test]
+    fn test_collect_sources_no_src_dir_falls_back_to_root() {
+        let tmp = TempDir::new().unwrap();
+        // No src/ directory — put file at project root
+        std::fs::write(tmp.path().join("standalone.c"), "int main() { return 0; }").unwrap();
+
+        let config = make_test_config("standalone");
+        let sources = collect_sources(&config, tmp.path()).unwrap();
+        assert_eq!(sources.len(), 1);
+        assert!(sources[0].ends_with("standalone.c"));
+    }
+
+    // -----------------------------------------------------------------------
+    // escape_rsp_arg
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_escape_rsp_arg_plain() {
+        assert_eq!(escape_rsp_arg("-O2"), "-O2");
+        assert_eq!(escape_rsp_arg("-std=c17"), "-std=c17");
+        assert_eq!(escape_rsp_arg("-DFOO=bar"), "-DFOO=bar");
+    }
+
+    #[test]
+    fn test_escape_rsp_arg_with_spaces() {
+        // Arguments containing spaces get quoted
+        let escaped = escape_rsp_arg("-I/path with spaces/include");
+        assert!(escaped.starts_with('"'));
+        assert!(escaped.ends_with('"'));
+    }
+
+    #[test]
+    fn test_escape_rsp_arg_with_quotes() {
+        // Arguments with embedded quotes get escaped
+        let escaped = escape_rsp_arg("-DFOO=\"bar\"");
+        assert!(escaped.contains("\\\""));
+    }
+
+    #[test]
+    fn test_escape_rsp_arg_empty() {
+        assert_eq!(escape_rsp_arg(""), "");
+    }
+
+    // -----------------------------------------------------------------------
+    // output_dir / object_dir / source_to_object
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_output_dir_debug() {
+        let root = Path::new("/test/project");
+        let out = output_dir(root, false);
+        assert_eq!(out, Path::new("/test/project/target/debug"));
+    }
+
+    #[test]
+    fn test_output_dir_release() {
+        let root = Path::new("/test/project");
+        let out = output_dir(root, true);
+        assert_eq!(out, Path::new("/test/project/target/release"));
+    }
+
+    #[test]
+    fn test_object_dir() {
+        let root = Path::new("/test/project");
+        let obj = object_dir(root, false);
+        assert_eq!(obj, Path::new("/test/project/target/.build"));
+        // release flag doesn't change object dir
+        let obj_rel = object_dir(root, true);
+        assert_eq!(obj_rel, Path::new("/test/project/target/.build"));
+    }
+
+    #[test]
+    fn test_source_to_object() {
+        let root = Path::new("/test/project");
+        let source = Path::new("/test/project/src/main.c");
+        let obj = source_to_object(source, root, false);
+        assert_eq!(obj, Path::new("/test/project/target/.build/src/main.o"));
+    }
+
+    #[test]
+    fn test_source_to_object_release() {
+        let root = Path::new("/test/project");
+        let source = Path::new("/test/project/src/main.c");
+        let obj = source_to_object(source, root, true);
+        // object_dir doesn't differ by profile, so same path
+        assert_eq!(obj, Path::new("/test/project/target/.build/src/main.o"));
+    }
+
+    // -----------------------------------------------------------------------
+    // infer_cxx
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_infer_cxx_gcc() {
+        assert_eq!(infer_cxx("gcc"), "g++");
+    }
+
+    #[test]
+    fn test_infer_cxx_clang() {
+        assert_eq!(infer_cxx("clang"), "clang++");
+    }
+
+    #[test]
+    fn test_infer_cxx_cc() {
+        assert_eq!(infer_cxx("cc"), "c++");
+    }
+
+    #[test]
+    fn test_infer_cxx_custom_suffix() {
+        assert_eq!(infer_cxx("x86_64-linux-gnu-gcc"), "x86_64-linux-gnu-g++");
+    }
+
+    #[test]
+    fn test_infer_cxx_custom_clang_suffix() {
+        assert_eq!(infer_cxx("x86_64-linux-gnu-clang"), "x86_64-linux-gnu-clang++");
+    }
+
+    #[test]
+    fn test_infer_cxx_unknown() {
+        // Unknown prefix is returned as-is
+        assert_eq!(infer_cxx("zig-cc"), "zig-cc");
+    }
+
+    // -----------------------------------------------------------------------
+    // command_exists
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_command_exists_shell() {
+        // 'sh' should exist on essentially all Unix systems
+        let result = command_exists("sh");
+        assert!(result, "expected 'sh' to exist on this system");
+    }
+
+    #[test]
+    fn test_command_exists_nonexistent() {
+        let result = command_exists("this_command_definitely_does_not_exist_xyzzy");
+        assert!(!result);
+    }
+
+    // -----------------------------------------------------------------------
+    // detect_build_system
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_detect_build_system_explicit_cmake() {
+        let mut config = make_test_config("proj");
+        config.build.system = "cmake".into();
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Cmake
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_explicit_make() {
+        let mut config = make_test_config("proj");
+        config.build.system = "make".into();
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Make
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_explicit_hut() {
+        let mut config = make_test_config("proj");
+        config.build.system = "hut".into();
+        let tmp = TempDir::new().unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Hut
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_auto_cmake() {
+        let config = make_test_config("proj");
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("CMakeLists.txt"), "").unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Cmake
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_auto_makefile() {
+        let config = make_test_config("proj");
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("Makefile"), "").unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Make
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_auto_gnumakefile() {
+        let config = make_test_config("proj");
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("GNUmakefile"), "").unwrap();
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Make
+        );
+    }
+
+    #[test]
+    fn test_detect_build_system_auto_defaults_to_hut() {
+        let config = make_test_config("proj");
+        let tmp = TempDir::new().unwrap();
+        // No CMakeLists.txt, no Makefile → defaults to Hut
+        assert_eq!(
+            detect_build_system(&config, tmp.path()),
+            BuildSystem::Hut
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // detect_ar
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_detect_ar_returns_string() {
+        let ar = detect_ar();
+        assert!(!ar.is_empty());
+        // Should be "ar" or "llvm-ar"
+        assert!(ar == "ar" || ar == "llvm-ar",
+            "Expected 'ar' or 'llvm-ar', got '{ar}'");
+    }
+
+    // -----------------------------------------------------------------------
+    // parallel_jobs
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parallel_jobs_returns_reasonable_number() {
+        let jobs = parallel_jobs();
+        assert!(jobs >= 1, "expected at least 1 parallel job, got {jobs}");
+    }
+
+    // -----------------------------------------------------------------------
+    // BuildSystem enum
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_system_eq() {
+        assert_eq!(BuildSystem::Hut, BuildSystem::Hut);
+        assert_ne!(BuildSystem::Hut, BuildSystem::Cmake);
+        assert_ne!(BuildSystem::Cmake, BuildSystem::Make);
+    }
+
+    #[test]
+    fn test_build_system_debug() {
+        let s = format!("{:?}", BuildSystem::Hut);
+        assert_eq!(s, "Hut");
+        let s = format!("{:?}", BuildSystem::Cmake);
+        assert_eq!(s, "Cmake");
+        let s = format!("{:?}", BuildSystem::Make);
+        assert_eq!(s, "Make");
+    }
+}
