@@ -31,7 +31,6 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 - 🔖 **Semver resolution** — `^1.0`, `>=2.0,<3.0`, `=1.2.3` matched against git tags
 - 🔥 **Hot rebuilds** — only rebuilds changed files (like ninja)
 - 👀 **Watch mode** — `hut dev` rebuilds on file changes
-- 🧪 **Built-in testing** — auto-discovers and runs test targets
 - 🌐 **Registry support** — search and install packages from the community registry
 - 🏃 **`hut x`** — run any package directly (like `npx` for C/C++)
 - 🔗 **Workspaces** — manage monorepos with ease
@@ -147,7 +146,6 @@ bench = "./benchmarks/run.sh"
 | **Lockfile** | ✅ `hut.lock` | ❌ | ❌ | ❌ | ✅ |
 | **Watch mode** | ✅ `hut dev` | ❌ | ❌ | ❌ | ❌ |
 | **npx-style** | ✅ `hut x` | ❌ | ❌ | ❌ | ❌ |
-| **Testing** | ✅ Built-in | ❌ | ❌ | ❌ | ❌ |
 | **Workspaces** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Single binary** | ✅ ~11MB | ❌ | ❌ | ❌ | ❌ |
 | **Templates** | ✅ | ❌ | ❌ | ❌ | ❌ |
