@@ -844,7 +844,9 @@ defines = ["RAYGUI_IMPLEMENTATION"]
 repo = "raysan5/raylib"
 description = "Simple game programming library"
 includes = ["src"]
+libs = ["raylib"]
 cflags = ["-lGL", "-lm", "-lpthread", "-ldl", "-lrt", "-lX11"]
+build = "make -j$(nproc) -C src"
 
 [packages.ringbuf]
 repo = "rmind/ringbuf"

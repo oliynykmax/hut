@@ -36,6 +36,10 @@ pub struct PackageEntry {
     /// Extra linker flags
     #[serde(default)]
     pub ldflags: Vec<String>,
+    /// Shell command to build the library (run in fetched source dir).
+    /// Output libraries should appear in build/ or the package root.
+    #[serde(default)]
+    pub build: String,
 }
 
 /// The full packages index loaded from a TOML file.
@@ -256,6 +260,7 @@ mod tests {
             defines: vec![],
             cflags: vec![],
             ldflags: vec![],
+            build: String::new(),
         }
     }
 

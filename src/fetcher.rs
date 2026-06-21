@@ -80,7 +80,11 @@ fn hash_directory(dir: &Path) -> HutResult<String> {
         .filter_map(|e| e.ok())
     {
         if entry.file_type().is_file() {
+            // Skip cache metadata and build artifacts.
             if entry.file_name() == ".hut-cache.json" {
+                continue;
+            }
+            if entry.path().extension().map_or(false, |e| e == "a" || e == "o" || e == "so" || e == "dylib") {
                 continue;
             }
             entries.push(entry.path().to_path_buf());
@@ -379,6 +383,7 @@ pub fn fetch_package_source(name: &str, repo_url: &str, version: &str) -> HutRes
 
 /// Strip common prefixes from a git tag to extract the semver portion.
 /// e.g. "v1.2.3" → "1.2.3", "release-2.0.0" → "2.0.0", "lib-v3.0.0" → "3.0.0"
+/// Two-part tags like "5.0" are normalized to "5.0.0".
 pub fn strip_tag_prefix(tag: &str) -> String {
     let prefixes = ["v", "release-", "lib-", "lib-v", "version-", "ver-"];
     let result = tag;
@@ -386,11 +391,24 @@ pub fn strip_tag_prefix(tag: &str) -> String {
         if let Some(stripped) = result.strip_prefix(prefix) {
             // Only strip once
             if stripped.chars().next().map_or(false, |c| c.is_ascii_digit()) {
-                return stripped.to_string();
+                let s = stripped.to_string();
+                // Normalize 2-part to 3-part semver (e.g. "5.0" → "5.0.0")
+                let parts: Vec<&str> = s.split('.').collect();
+                match parts.len() {
+                    1 => return format!("{}.0.0", s),
+                    2 => return format!("{}.0", s),
+                    _ => return s,
+                }
             }
         }
     }
-    result.to_string()
+    // Also normalize unprefixed tags
+    let parts: Vec<&str> = result.split('.').collect();
+    match parts.len() {
+        1 if parts[0].chars().all(|c| c.is_ascii_digit()) => format!("{}.0.0", result),
+        2 if parts[0].chars().all(|c| c.is_ascii_digit()) && parts[1].chars().all(|c| c.is_ascii_digit()) => format!("{}.0", result),
+        _ => result.to_string(),
+    }
 }
 
 /// Resolve the best version matching a semver constraint from remote git tags.
@@ -605,6 +623,52 @@ pub fn install_dependencies(config: &HutConfig, cache_dir: &Path) -> HutResult<(
     }
 
     Ok(())
+}
+
+/// Run the build command for a package in its source directory.
+/// Scans for `.a` files afterwards and returns the directories containing them.
+pub fn build_package_source(name: &str, pkg_path: &Path, build_cmd: &str) -> HutResult<Vec<PathBuf>> {
+    use std::process::Command;
+
+    status("Building", &format!("{} with: {}", name, build_cmd));
+
+    let exit = Command::new("sh")
+        .args(["-c", build_cmd])
+        .current_dir(pkg_path)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| HutError::Other(format!("Failed to run build command for {name}: {e}")))?;
+
+    if !exit.success() {
+        return Err(HutError::Other(format!(
+            "Build command failed for {name} (exit: {})",
+            exit.code().unwrap_or(-1)
+        )));
+    }
+
+    // Scan for .a files produced by the build
+    let mut lib_dirs: Vec<PathBuf> = Vec::new();
+    for entry in walkdir::WalkDir::new(pkg_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file() {
+            if let Some(ext) = entry.path().extension() {
+                if ext == "a" {
+                    if let Some(parent) = entry.path().parent() {
+                        let canonical = parent.to_path_buf();
+                        if !lib_dirs.contains(&canonical) {
+                            lib_dirs.push(canonical);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    status("Built", &format!("{} ({} lib dir(s))", name, lib_dirs.len()));
+    Ok(lib_dirs)
 }
 
 #[cfg(test)]

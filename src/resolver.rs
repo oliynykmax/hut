@@ -98,6 +98,13 @@ impl<'a> ResolveContext<'a> {
         // Fetch package source (clone from GitHub at the resolved tag).
         let pkg_path = crate::fetcher::fetch_package_source(name, &repo_url, &version)?;
 
+        // Run the package's build command if one is specified.
+        let built_lib_dirs = if !entry.build.is_empty() {
+            crate::fetcher::build_package_source(name, &pkg_path, &entry.build)?
+        } else {
+            Vec::new()
+        };
+
         self.resolved_names.insert(name.to_string());
 
         // For transitive deps: if the cloned repo has a hut.toml, load it.
@@ -173,7 +180,7 @@ impl<'a> ResolveContext<'a> {
             include_paths.push(pkg_path.clone());
         }
 
-        let library_paths: Vec<PathBuf> = {
+        let mut library_paths: Vec<PathBuf> = {
             let build_dir = pkg_path.join("build");
             if build_dir.exists() {
                 vec![build_dir]
@@ -181,6 +188,12 @@ impl<'a> ResolveContext<'a> {
                 vec![pkg_path.clone()]
             }
         };
+        // Add directories where the build command produced .a files.
+        for dir in &built_lib_dirs {
+            if !library_paths.contains(dir) {
+                library_paths.push(dir.clone());
+            }
+        }
 
         let mut link_libraries: Vec<String> = entry.libs.clone();
         link_libraries.extend(pkg.libraries.iter().map(|lib| lib.name.clone()));
