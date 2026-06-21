@@ -11,7 +11,6 @@ use tempfile::TempDir;
 
 use crate::config::HutConfig;
 use crate::error::{HutError, HutResult};
-use crate::lockfile::Lockfile;
 use crate::package::Package;
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -603,54 +602,6 @@ pub fn install_dependencies(config: &HutConfig, cache_dir: &Path) -> HutResult<(
 
     for result in results {
         result?;
-    }
-
-    Ok(())
-}
-
-// ── fetch_and_run (hut x) ──────────────────────────────────────────────────
-
-pub fn fetch_and_run(repo_spec: &str, args: &[String]) -> HutResult<()> {
-    let (repo, version) = if let Some((r, v)) = repo_spec.split_once('@') {
-        (r, v.to_string())
-    } else {
-        (repo_spec, "main".to_string())
-    };
-
-    let name = repo.split('/').last().unwrap_or(repo);
-    let repo_url = format!("https://github.com/{repo}.git");
-
-    let tmp = TempDir::new().map_err(|e| HutError::Io(e))?;
-    let (_pkg, pkg_dir) = fetch_package_metadata(name, &repo_url, &version)?;
-
-    let config = HutConfig::load(&pkg_dir.join("hut.toml"))?;
-
-    println!(
-        "{} [debug] {} v{}",
-        "   Building".bold().cyan(),
-        config.package.name.bold(),
-        config.package.version.dimmed()
-    );
-
-    let lockfile = Lockfile::new();
-    let index = crate::index::PackagesIndex::load_builtin()?;
-    let deps = crate::resolver::resolve_dependencies(&config, &lockfile, &index, tmp.path())?;
-    crate::builder::build_project(&config, &deps, false)?;
-
-    let binary = pkg_dir.join("target/debug").join(&config.package.name);
-    let status = Command::new(&binary)
-        .args(args)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .map_err(|e| HutError::Other(format!("Failed to run binary: {e}")))?;
-
-    if !status.success() {
-        return Err(HutError::Other(format!(
-            "Process exited with status {}",
-            status.code().unwrap_or(-1)
-        )));
     }
 
     Ok(())

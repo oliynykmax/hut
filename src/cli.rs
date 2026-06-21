@@ -89,15 +89,6 @@ pub enum Commands {
     #[command(alias = "t")]
     Test,
 
-    /// Fetch, build, and execute a remote package (like npx)
-    X {
-        /// Package spec: "user/repo" or "user/repo@v1.0"
-        pkg: String,
-        /// Arguments forwarded to the package's binary
-        #[arg(last = true)]
-        args: Vec<String>,
-    },
-
     /// Symlink a local package for development
     Link {
         /// Optional path to the local package (defaults to cwd)
@@ -555,7 +546,7 @@ mod tests {
         }
     }
 
-    // ── Create / X / Link / Unlink ─────────────────────────────────────────
+    // ── Create / Link / Unlink ─────────────────────────────────────────────
     #[test]
     fn test_parse_create() {
         let cli = Cli::try_parse_from(["hut", "create", "lib"]).unwrap();
@@ -569,30 +560,6 @@ mod tests {
     fn test_parse_create_missing_template() {
         let result = Cli::try_parse_from(["hut", "create"]);
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_x_pkg() {
-        let cli = Cli::try_parse_from(["hut", "x", "user/repo"]).unwrap();
-        match cli.command {
-            Commands::X { pkg, args } => {
-                assert_eq!(pkg, "user/repo");
-                assert!(args.is_empty());
-            }
-            _ => panic!("expected X"),
-        }
-    }
-
-    #[test]
-    fn test_parse_x_pkg_with_args() {
-        let cli = Cli::try_parse_from(["hut", "x", "user/repo", "--", "--flag"]).unwrap();
-        match cli.command {
-            Commands::X { pkg, args } => {
-                assert_eq!(pkg, "user/repo");
-                assert_eq!(args, vec!["--flag"]);
-            }
-            _ => panic!("expected X"),
-        }
     }
 
     #[test]

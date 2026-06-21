@@ -32,7 +32,6 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 - 🔥 **Hot rebuilds** — only rebuilds changed files (like ninja)
 - 👀 **Watch mode** — `hut dev` rebuilds on file changes
 - 🌐 **Package index** — search and install from 160+ curated packages (`hut search`)
-- 🏃 **`hut x`** — run any package directly (like `npx` for C/C++)
 - 🔗 **Workspaces** — run commands across multiple packages
 - 🎨 **Templates** — scaffold projects with `hut create`
 - 📊 **Info & tree** — inspect your dependency graph
@@ -57,7 +56,6 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 | `hut remove <pkg>` | Remove a dependency |
 | `hut update [pkg]` | Update dependencies |
 | `hut outdated` | List outdated dependencies |
-| `hut x <pkg>` | Run a remote package (npx-style) |
 | `hut link [path]` | Symlink a local package for development |
 | `hut unlink <pkg>` | Remove a local dev symlink |
 | `hut publish` | Show publishing instructions |
@@ -145,7 +143,6 @@ bench = "./benchmarks/run.sh"
 | **Package manager** | ✅ Built-in | ❌ | ❌ | ✅ (separate) | ✅ (separate) |
 | **Lockfile** | ✅ `hut.lock` | ❌ | ❌ | ❌ | ✅ |
 | **Watch mode** | ✅ `hut dev` | ❌ | ❌ | ❌ | ❌ |
-| **npx-style** | ✅ `hut x` | ❌ | ❌ | ❌ | ❌ |
 | **Single binary** | ✅ ~11MB | ❌ | ❌ | ❌ | ❌ |
 | **Templates** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Shell completions** | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -167,7 +164,8 @@ bench = "./benchmarks/run.sh"
 │  ├──────────┼──────────┼──────────┼──────────┼──────────┤  │
 │  │  add     │  remove  │  install │  update  │ outdated │  │
 │  ├──────────┼──────────┼──────────┼──────────┼──────────┤  │
-│  │  x       │  link    │  publish │  search  │  info    │  │
+    │  │  link    │  publish │  search  │  info    │  │
+
 │  ├──────────┼──────────┼──────────┼──────────┼──────────┤  │
 │  │  dev     │  patch   │  pm      │  upgrade │ complet. │  │
 │  └──────────┴──────────┴──────────┴──────────┴──────────┘  │

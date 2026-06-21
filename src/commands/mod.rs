@@ -27,8 +27,6 @@ pub mod test;
 pub mod update;
 pub mod upgrade;
 pub mod workspace;
-pub mod x;
-
 // Re-export all command functions
 pub use add::cmd_add;
 pub use build::cmd_build;
@@ -50,4 +48,3 @@ pub use test::cmd_test;
 pub use update::cmd_update;
 pub use upgrade::cmd_upgrade;
 pub use workspace::cmd_workspace;
-pub use x::cmd_x;

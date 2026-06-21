@@ -22,7 +22,6 @@ use commands::{
     cmd_add, cmd_build, cmd_clean, cmd_completions, cmd_create, cmd_dev, cmd_fmt, cmd_info,
     cmd_init, cmd_install, cmd_link, cmd_lint, cmd_outdated, cmd_patch, cmd_pm, cmd_publish,
     cmd_remove, cmd_run, cmd_search, cmd_test, cmd_unlink, cmd_update, cmd_upgrade, cmd_workspace,
-    cmd_x,
 };
 
 fn main() {
@@ -44,7 +43,6 @@ fn main() {
             jit,
         } => cmd_run(target, args, release, jit),
         Commands::Test => cmd_test(),
-        Commands::X { pkg, args } => cmd_x(&pkg, &args),
         Commands::Link { path } => cmd_link(path.as_deref()),
         Commands::Unlink { pkg } => cmd_unlink(&pkg),
         Commands::Publish => cmd_publish(),

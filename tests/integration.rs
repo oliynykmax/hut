@@ -312,7 +312,6 @@ fn test_cli_help_and_version() {
         "build",
         "run",
         "test",
-        "x",
         "link",
         "unlink",
         "publish",
@@ -328,8 +327,8 @@ fn test_cli_help_and_version() {
 
     assert_eq!(
         expected_subcommands.len(),
-        22,
-        "Expected exactly 22 subcommands"
+        21,
+        "Expected exactly 21 subcommands"
     );
 
     for sub in &expected_subcommands {
