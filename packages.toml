@@ -15,6 +15,7 @@ cflags = ["-std=c++11"]
 repo = "Auburn/FastNoiseLite"
 description = "Fast portable noise library header-only"
 includes = ["."]
+defines = ["FNL_IMPL"]
 
 [packages.HandmadeMath]
 repo = "HandmadeMath/HandmadeMath"
@@ -569,7 +570,7 @@ repo = "lvandeve/lodepng"
 description = "PNG encoder/decoder single .cpp/.h no deps"
 includes = ["."]
 sources = ["lodepng.cpp"]
-cflags = ["-std=c++11"]
+build = "cc -c -fPIC -x c lodepng.cpp && ar rcs liblodepng.a lodepng.o"
 
 [packages."log.c"]
 repo = "rxi/log.c"
@@ -1114,7 +1115,6 @@ cflags = ["-lpthread", "-ldl", "-lm"]
 repo = "sheredom/utest.h"
 description = "Single-header C/C++ unit testing"
 includes = ["."]
-defines = ["UTEST_H_IMPLEMENTATION"]
 
 [packages."utf8.h"]
 repo = "sheredom/utf8.h"
@@ -1136,7 +1136,7 @@ sources = ["tinf*.c"]
 repo = "rxi/vec"
 description = "Type-safe dynamic array in C"
 includes = ["."]
-sources = ["vec.c"]
+sources = ["src/vec.c"]
 
 [packages.vedis]
 repo = "symisc/vedis"
