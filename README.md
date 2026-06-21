@@ -31,9 +31,9 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 - 🔖 **Semver resolution** — `^1.0`, `>=2.0,<3.0`, `=1.2.3` matched against git tags
 - 🔥 **Hot rebuilds** — only rebuilds changed files (like ninja)
 - 👀 **Watch mode** — `hut dev` rebuilds on file changes
-- 🌐 **Registry support** — search and install packages from the community registry
+- 🌐 **Package index** — search and install from 160+ curated packages (`hut search`)
 - 🏃 **`hut x`** — run any package directly (like `npx` for C/C++)
-- 🔗 **Workspaces** — manage monorepos with ease
+- 🔗 **Workspaces** — run commands across multiple packages
 - 🎨 **Templates** — scaffold projects with `hut create`
 - 📊 **Info & tree** — inspect your dependency graph
 - 🪡 **Include system** — header-only library handling
