@@ -9,6 +9,19 @@ use hut::error::{HutError, HutResult};
 
 use crate::commands::{command_exists, find_project_root};
 
+fn project_root_and_config() -> HutResult<(PathBuf, HutConfig)> {
+    let cwd = std::env::current_dir()?;
+    for ancestor in cwd.ancestors() {
+        let path = ancestor.join("hut.toml");
+        if path.exists() {
+            let config = HutConfig::load(&path)?;
+            return Ok((ancestor.to_path_buf(), config));
+        }
+    }
+    let name = cwd.file_name().unwrap_or_default().to_string_lossy().to_string();
+    Ok((cwd, HutConfig::default_template(&name)))
+}
+
 pub fn cmd_fmt(check: bool) -> HutResult<()> {
     if !command_exists("clang-format") {
         return Err(HutError::Other(
@@ -16,8 +29,7 @@ pub fn cmd_fmt(check: bool) -> HutResult<()> {
         ));
     }
 
-    let project_root = find_project_root()?;
-    let (config, _config_path) = HutConfig::find()?;
+    let (project_root, config) = project_root_and_config()?;
 
     let sources =
         hut::builder::collect_sources(&config, &project_root).unwrap_or_else(|_| Vec::new());
@@ -115,8 +127,7 @@ pub fn cmd_fmt(check: bool) -> HutResult<()> {
 /// 24. `hut lint` — lint C/C++ source files
 
 pub fn cmd_lint() -> HutResult<()> {
-    let project_root = find_project_root()?;
-    let (config, _config_path) = HutConfig::find()?;
+    let (project_root, config) = project_root_and_config()?;
     let compiler = config.build.compiler.as_str();
 
     let cc = match compiler {
@@ -142,6 +153,7 @@ pub fn cmd_lint() -> HutResult<()> {
         for src in &sources {
             print!("  {} ", "lint".green());
             let status = std::process::Command::new("clang-tidy")
+                .arg("--allow-no-checks")
                 .arg(src)
                 .arg("--")
                 .arg("-std=c11")
