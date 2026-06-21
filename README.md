@@ -146,7 +146,6 @@ bench = "./benchmarks/run.sh"
 | **Lockfile** | ✅ `hut.lock` | ❌ | ❌ | ❌ | ✅ |
 | **Watch mode** | ✅ `hut dev` | ❌ | ❌ | ❌ | ❌ |
 | **npx-style** | ✅ `hut x` | ❌ | ❌ | ❌ | ❌ |
-| **Workspaces** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Single binary** | ✅ ~11MB | ❌ | ❌ | ❌ | ❌ |
 | **Templates** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Shell completions** | ✅ | ❌ | ❌ | ❌ | ❌ |
