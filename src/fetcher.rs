@@ -719,6 +719,27 @@ pub fn auto_build_package_source(
         )));
     }
 
+    // Check if the archive is already up-to-date (skip recompilation)
+    let lib_name = format!("lib{name}.a");
+    let lib_path = pkg_path.join(&lib_name);
+    if lib_path.exists() {
+        let lib_modified = match std::fs::metadata(&lib_path).and_then(|m| m.modified()) {
+            Ok(t) => t,
+            Err(_) => std::time::UNIX_EPOCH,
+        };
+        let all_fresh = source_files.iter().all(|src| {
+            std::fs::metadata(src)
+                .and_then(|m| m.modified())
+                .map(|mtime| mtime <= lib_modified)
+                .unwrap_or(false)
+        });
+        if all_fresh {
+            status("Cached", &format!("{} archive", name));
+            let lib_dirs = scan_lib_dirs(pkg_path);
+            return Ok(lib_dirs);
+        }
+    }
+
     status("Compiling", &format!("{} ({} file(s))", name, source_files.len()));
 
     // Build include flags
@@ -785,8 +806,6 @@ pub fn auto_build_package_source(
     }
 
     // Archive into static library
-    let lib_name = format!("lib{name}.a");
-    let lib_path = pkg_path.join(&lib_name);
 
     status("Archiving", &format!("{} → {}", name, lib_name));
 
