@@ -187,7 +187,7 @@ fn output_dir(project_root: &Path, release: bool) -> PathBuf {
 
 fn object_dir(project_root: &Path, release: bool) -> PathBuf {
     let profile = if release { "release" } else { "debug" };
-    project_root.join("target").join(".build").join(profile)
+    project_root.join("target").join(profile)
 }
 
 fn source_to_object(source: &Path, project_root: &Path, release: bool) -> PathBuf {
