@@ -11,10 +11,11 @@
 </p>
 
 ```
-  _   _   _   _
- / \ / \ / \ / \
-( h | u | t | ! )
- \_/ \_/ \_/ \_/
+    __          __ 
+   / /_  __  __/ /_
+  / __ \/ / / / __/
+ / / / / /_/ / /_  
+/_/ /_/\__,_/\__/  
 ```
 
 hut is a **fast, all-in-one build system and package manager** for C and C++ projects. It replaces cmake + make + vcpkg + conan with a single, zero-config tool.
