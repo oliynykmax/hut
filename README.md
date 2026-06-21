@@ -20,8 +20,6 @@
 
 hut is a **fast, all-in-one build system and package manager** for C and C++ projects. It replaces cmake + make + vcpkg + conan with a single, zero-config tool.
 
-> **Why "hut"?** A hut is simple, sturdy, and gets the job done — just like this tool. 🛖
-
 ---
 
 ## ✨ Features
@@ -30,7 +28,7 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 - 📦 **Package manager built-in** — no external package manager needed
 - 🔒 **Deterministic lockfiles** — reproducible builds with `hut.lock`
 - 🔖 **Semver resolution** — `^1.0`, `>=2.0,<3.0`, `=1.2.3` matched against git tags
-- 🔥 **Hot rebuilds** — only rebuilds changed files (like ninja)
+- 🔥 **Hot rebuilds** — only rebuilds changed files
 - 👀 **Watch mode** — `hut dev` rebuilds on file changes
 - 🌐 **Package index** — search and install from 160+ curated packages (`hut search`)
 - 🔗 **Workspaces** — run commands across multiple packages
