@@ -1,9 +1,11 @@
 //! Dependency resolver — resolves packages using the local packages.toml index.
-//! Packages are cloned from GitHub. The packages.toml recipe provides all build
-//! metadata — repos do NOT need their own hut.toml.
+//! Semver-aware resolution: constraints from hut.toml (e.g. "^1.0") are matched
+//! against git tags from the remote repo. Lockfile pins exact versions.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+use semver::{Version, VersionReq};
 
 use crate::config::HutConfig;
 use crate::error::{HutError, HutResult};
@@ -14,8 +16,8 @@ use crate::package::{Package, ResolvedDependency};
 // ── Public API ────────────────────────────────────────────────────────────
 
 /// Resolve all dependencies (direct + transitive) for a project.
-/// Uses the local packages.toml index for name → repo + build recipe.
-/// Repos are cloned from GitHub; the recipe provides all metadata.
+/// Semver constraints from hut.toml are matched against git tags.
+/// Lockfile pins exact tag versions for reproducible builds.
 pub fn resolve_dependencies(
     config: &HutConfig,
     lockfile: &Lockfile,
@@ -32,16 +34,28 @@ pub fn resolve_dependencies(
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
-    while let Some((name, _version)) = queue.pop() {
+    while let Some((name, constraint)) = queue.pop() {
         if ctx.resolved_names.contains(&name) {
             continue;
         }
-        ctx.resolve_one(&name, &mut queue)?;
+        ctx.resolve_one(&name, &constraint, &mut queue)?;
     }
 
     let mut result: Vec<ResolvedDependency> = ctx.packages.into_values().collect();
     result.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(result)
+}
+
+// ── Semver helpers ────────────────────────────────────────────────────────
+
+/// Parse a semver constraint string from hut.toml.
+/// Returns None for wildcard constraints ("*", "latest", empty) — accept any.
+fn parse_constraint(s: &str) -> Option<VersionReq> {
+    let s = s.trim();
+    if s.is_empty() || s == "*" || s == "latest" || s == "x" {
+        return None;
+    }
+    VersionReq::parse(s).ok()
 }
 
 // ── Internal context ──────────────────────────────────────────────────────
@@ -63,34 +77,35 @@ impl<'a> ResolveContext<'a> {
         }
     }
 
-    fn resolve_one(&mut self, name: &str, queue: &mut Vec<(String, String)>) -> HutResult<()> {
+    /// Resolve a single package by name, given a semver constraint.
+    fn resolve_one(
+        &mut self,
+        name: &str,
+        constraint_str: &str,
+        queue: &mut Vec<(String, String)>,
+    ) -> HutResult<()> {
         let entry = self
             .index
             .find(name)
             .ok_or_else(|| HutError::PackageNotFound(name.to_string()))?;
 
         let repo_url = format!("https://github.com/{}.git", entry.repo);
+        let constraint = parse_constraint(constraint_str);
 
-        // Determine version: lockfile pinned version, or default to "main".
-        let version = if let Some(locked) = self.lockfile.get(name) {
-            locked.version.clone()
-        } else {
-            "main".to_string()
-        };
+        // Determine the version (tag) to fetch.
+        let version = self.resolve_version(name, &repo_url, &constraint)?;
 
-        // Fetch package source (clone from GitHub).
+        // Fetch package source (clone from GitHub at the resolved tag).
         let pkg_path = crate::fetcher::fetch_package_source(name, &repo_url, &version)?;
 
         self.resolved_names.insert(name.to_string());
 
         // For transitive deps: if the cloned repo has a hut.toml, load it.
-        // Otherwise, the package has no transitive deps.
         let hut_toml = pkg_path.join("hut.toml");
         let pkg = if hut_toml.exists() {
             let manifest = std::fs::read_to_string(&hut_toml)?;
             let cfg: HutConfig = toml::from_str(&manifest)?;
 
-            // Enqueue transitive dependencies.
             for (t_name, t_version) in cfg
                 .dependencies
                 .iter()
@@ -124,7 +139,6 @@ impl<'a> ResolveContext<'a> {
                 ldflags: vec![],
             }
         } else {
-            // No hut.toml — use recipe metadata only.
             Package {
                 name: name.to_string(),
                 version: version.clone(),
@@ -148,7 +162,6 @@ impl<'a> ResolveContext<'a> {
             }
         };
 
-        // Collect include paths from recipe + package.
         let mut include_paths: Vec<PathBuf> = entry
             .includes
             .iter()
@@ -172,7 +185,6 @@ impl<'a> ResolveContext<'a> {
         let mut link_libraries: Vec<String> = entry.libs.clone();
         link_libraries.extend(pkg.libraries.iter().map(|lib| lib.name.clone()));
 
-        // Gather transitive paths from already-resolved deps.
         for t_name in pkg.dependencies.keys() {
             if let Some(rd) = self.packages.get(t_name) {
                 include_paths.extend(rd.include_paths.clone());
@@ -193,5 +205,76 @@ impl<'a> ResolveContext<'a> {
 
         self.packages.insert(name.to_string(), resolved);
         Ok(())
+    }
+
+    /// Resolve the exact version (tag) for a package given a semver constraint.
+    ///
+    /// Priority:
+    /// 1. Lockfile — if pinned version satisfies constraint, use it
+    /// 2. Remote tags — fetch tags, filter by constraint, pick highest
+    /// 3. Fallback — "main" branch
+    fn resolve_version(
+        &self,
+        name: &str,
+        repo_url: &str,
+        constraint: &Option<VersionReq>,
+    ) -> HutResult<String> {
+        // Check lockfile first.
+        if let Some(locked) = self.lockfile.get(name) {
+            let tag_stripped = crate::fetcher::strip_tag_prefix(&locked.version);
+            if let Ok(parsed) = Version::parse(&tag_stripped) {
+                if constraint.as_ref().map_or(true, |c| c.matches(&parsed)) {
+                    return Ok(locked.version.clone());
+                }
+            } else if constraint.is_none() {
+                // Locked version isn't semver (e.g. "main") and no constraint — use it.
+                return Ok(locked.version.clone());
+            }
+        }
+
+        // Resolve from remote git tags.
+        let version = crate::fetcher::resolve_best_version(repo_url, constraint)?;
+        Ok(version)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_constraint_none() {
+        assert!(parse_constraint("").is_none());
+        assert!(parse_constraint("*").is_none());
+        assert!(parse_constraint("latest").is_none());
+        assert!(parse_constraint("x").is_none());
+    }
+
+    #[test]
+    fn test_parse_constraint_caret() {
+        let req = parse_constraint("^1.0").unwrap();
+        assert!(req.matches(&Version::new(1, 5, 0)));
+        assert!(!req.matches(&Version::new(2, 0, 0)));
+    }
+
+    #[test]
+    fn test_parse_constraint_range() {
+        let req = parse_constraint(">=1.0,<2.0").unwrap();
+        assert!(req.matches(&Version::new(1, 9, 9)));
+        assert!(!req.matches(&Version::new(2, 0, 0)));
+    }
+
+    #[test]
+    fn test_parse_constraint_tilde() {
+        let req = parse_constraint("~0.5").unwrap();
+        assert!(req.matches(&Version::new(0, 5, 4)));
+        assert!(!req.matches(&Version::new(0, 6, 0)));
+    }
+
+    #[test]
+    fn test_parse_constraint_exact() {
+        let req = parse_constraint("=1.2.3").unwrap();
+        assert!(req.matches(&Version::new(1, 2, 3)));
+        assert!(!req.matches(&Version::new(1, 2, 4)));
     }
 }

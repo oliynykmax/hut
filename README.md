@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/language-Rust-red" alt="Language">
   <img src="https://img.shields.io/badge/C%2FC%2B%2B-supported-blueviolet" alt="C/C++">
 </p>
@@ -28,6 +28,7 @@ hut is a **fast, all-in-one build system and package manager** for C and C++ pro
 - ⚡ **Zero-config builds** — drop a `hut.toml` and go
 - 📦 **Package manager built-in** — no external package manager needed
 - 🔒 **Deterministic lockfiles** — reproducible builds with `hut.lock`
+- 🔖 **Semver resolution** — `^1.0`, `>=2.0,<3.0`, `=1.2.3` matched against git tags
 - 🔥 **Hot rebuilds** — only rebuilds changed files (like ninja)
 - 👀 **Watch mode** — `hut dev` rebuilds on file changes
 - 🧪 **Built-in testing** — auto-discovers and runs test targets
@@ -196,7 +197,7 @@ bench = "./benchmarks/run.sh"
 ### From Source
 
 ```bash
-git clone git@github.com:oliynykmax/hut.git ~/.hut
+git clone https://github.com/oliynykmax/hut.git ~/.hut
 cd ~/.hut
 cargo build --release
 cp target/release/hut ~/.local/bin/

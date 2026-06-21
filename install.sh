@@ -34,7 +34,7 @@ echo -e "${GREEN}✓${RESET} C compiler: $CC"
 
 # ── Clone & build ────────────────────────────────────────
 HUT_DIR="${HUT_DIR:-$HOME/.hut}"
-REPO="git@github.com:oliynykmax/hut.git"
+REPO="https://github.com/oliynykmax/hut.git"
 
 if [ -d "$HUT_DIR" ]; then
     echo -e "${BLUE}→${RESET} Updating hut in $HUT_DIR ..."
@@ -45,7 +45,7 @@ else
 fi
 
 echo -e "${BLUE}→${RESET} Building hut (release) ..."
-cargo build --release --manifest-path "$HUT_DIR/Cargo.toml" 2>&1 | tail -1
+cargo build --release --manifest-path "$HUT_DIR/Cargo.toml"
 
 # ── Install binary ───────────────────────────────────────
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"

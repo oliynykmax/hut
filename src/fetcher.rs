@@ -135,9 +135,15 @@ where
 
 // ── Git clone ──────────────────────────────────────────────────────────────
 
-fn git_clone(repo_url: &str, dest: &Path) -> HutResult<()> {
+fn git_clone(repo_url: &str, dest: &Path, version: &str) -> HutResult<()> {
+    let mut args = vec!["clone", "--depth", "1"];
+    if version != "main" {
+        args.push("--branch");
+        args.push(version);
+    }
     let output = Command::new("git")
-        .args(["clone", "--depth", "1", repo_url])
+        .args(&args)
+        .arg(repo_url)
         .arg(dest)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -147,10 +153,47 @@ fn git_clone(repo_url: &str, dest: &Path) -> HutResult<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(HutError::Other(format!(
-            "git clone failed for {repo_url}: {stderr}"
+            "git clone failed for {repo_url}@{version}: {stderr}"
         )));
     }
     Ok(())
+}
+
+/// List git tags from a remote repository.
+pub fn git_ls_remote_tags(repo_url: &str) -> HutResult<Vec<String>> {
+    let output = Command::new("git")
+        .args(["ls-remote", "--tags", repo_url])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| HutError::Other(format!("Failed to run git ls-remote: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(HutError::Other(format!(
+            "git ls-remote failed for {repo_url}: {stderr}"
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut tags: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for line in stdout.lines() {
+        // Format: "<sha>\trefs/tags/<tag-name>"
+        if let Some(tag) = line.split('\t').nth(1) {
+            let tag = tag.strip_prefix("refs/tags/").unwrap_or(tag);
+            // Skip dereferenced entries (peeled tags like "v1.0^{}")
+            if tag.ends_with("^{}") {
+                continue;
+            }
+            if seen.insert(tag.to_string()) {
+                tags.push(tag.to_string());
+            }
+        }
+    }
+
+    Ok(tags)
 }
 
 // ── GitHub tarball download ────────────────────────────────────────────────
@@ -277,7 +320,7 @@ pub fn fetch_package_source(name: &str, repo_url: &str, version: &str) -> HutRes
             if pkg_dir.exists() {
                 let _ = std::fs::remove_dir_all(&pkg_dir);
             }
-            git_clone(repo_url, &pkg_dir)?;
+            git_clone(repo_url, &pkg_dir, version)?;
             Ok(())
         },
         &format!("git clone {repo_url}"),
@@ -333,6 +376,53 @@ pub fn fetch_package_source(name: &str, repo_url: &str, version: &str) -> HutRes
     Ok(pkg_dir)
 }
 
+// ── Tag-based version resolution ─────────────────────────────────────────
+
+/// Strip common prefixes from a git tag to extract the semver portion.
+/// e.g. "v1.2.3" → "1.2.3", "release-2.0.0" → "2.0.0", "lib-v3.0.0" → "3.0.0"
+pub fn strip_tag_prefix(tag: &str) -> String {
+    let prefixes = ["v", "release-", "lib-", "lib-v", "version-", "ver-"];
+    let result = tag;
+    for prefix in &prefixes {
+        if let Some(stripped) = result.strip_prefix(prefix) {
+            // Only strip once
+            if stripped.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+                return stripped.to_string();
+            }
+        }
+    }
+    result.to_string()
+}
+
+/// Resolve the best version matching a semver constraint from remote git tags.
+/// Returns the tag name (e.g. "v1.2.3") or "main" as fallback.
+pub fn resolve_best_version(
+    repo_url: &str,
+    constraint: &Option<semver::VersionReq>,
+) -> HutResult<String> {
+    let tags = git_ls_remote_tags(repo_url)?;
+
+    let mut versions: Vec<(semver::Version, String)> = Vec::new();
+
+    for tag in &tags {
+        let ver_str = strip_tag_prefix(tag);
+        if let Ok(ver) = semver::Version::parse(&ver_str) {
+            if constraint.as_ref().map_or(true, |c| c.matches(&ver)) {
+                versions.push((ver, tag.clone()));
+            }
+        }
+    }
+
+    if versions.is_empty() {
+        // No matching semver tag — fall back to "main" branch
+        return Ok("main".to_string());
+    }
+
+    // Sort by version (highest first), then by tag name as tiebreaker
+    versions.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    Ok(versions[0].1.clone())
+}
+
 // ── Package metadata fetch (for packages WITH hut.toml) ───────────────────
 
 /// Clone a GitHub repo at a specific version and read its `hut.toml`.
@@ -375,7 +465,7 @@ pub fn fetch_package_metadata(
             if pkg_dir.exists() {
                 let _ = std::fs::remove_dir_all(&pkg_dir);
             }
-            git_clone(repo_url, &pkg_dir)?;
+            git_clone(repo_url, &pkg_dir, version)?;
             Ok(())
         },
         &format!("git clone {repo_url}"),
