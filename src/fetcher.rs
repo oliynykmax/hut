@@ -625,6 +625,29 @@ pub fn install_dependencies(config: &HutConfig, cache_dir: &Path) -> HutResult<(
     Ok(())
 }
 
+/// Scan a directory for `.a` files and return their parent directories.
+fn scan_lib_dirs(pkg_path: &Path) -> Vec<PathBuf> {
+    let mut lib_dirs: Vec<PathBuf> = Vec::new();
+    for entry in walkdir::WalkDir::new(pkg_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file() {
+            if let Some(ext) = entry.path().extension() {
+                if ext == "a" {
+                    if let Some(parent) = entry.path().parent() {
+                        let canonical = parent.to_path_buf();
+                        if !lib_dirs.contains(&canonical) {
+                            lib_dirs.push(canonical);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    lib_dirs
+}
+
 /// Run the build command for a package in its source directory.
 /// Scans for `.a` files afterwards and returns the directories containing them.
 pub fn build_package_source(name: &str, pkg_path: &Path, build_cmd: &str) -> HutResult<Vec<PathBuf>> {
@@ -647,26 +670,148 @@ pub fn build_package_source(name: &str, pkg_path: &Path, build_cmd: &str) -> Hut
         )));
     }
 
-    // Scan for .a files produced by the build
-    let mut lib_dirs: Vec<PathBuf> = Vec::new();
-    for entry in walkdir::WalkDir::new(pkg_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_type().is_file() {
-            if let Some(ext) = entry.path().extension() {
-                if ext == "a" {
-                    if let Some(parent) = entry.path().parent() {
-                        let canonical = parent.to_path_buf();
-                        if !lib_dirs.contains(&canonical) {
-                            lib_dirs.push(canonical);
+    let lib_dirs = scan_lib_dirs(pkg_path);
+    status("Built", &format!("{} ({} lib dir(s))", name, lib_dirs.len()));
+    Ok(lib_dirs)
+}
+
+/// Auto-build a package by compiling its sources and archiving into a static library.
+/// Used when `sources` is specified in packages.toml but no explicit `build` command.
+pub fn auto_build_package_source(
+    name: &str,
+    pkg_path: &Path,
+    sources: &[String],
+    includes: &[String],
+    defines: &[String],
+    cflags: &[String],
+) -> HutResult<Vec<PathBuf>> {
+    use std::process::Command;
+
+    // Expand source glob patterns
+    let mut source_files: Vec<PathBuf> = Vec::new();
+    for pattern in sources {
+        let pattern_path = pkg_path.join(pattern);
+        let pattern_str = pattern_path.to_string_lossy().to_string();
+        match glob::glob(&pattern_str) {
+            Ok(entries) => {
+                for entry in entries {
+                    if let Ok(path) = entry {
+                        if !source_files.contains(&path) {
+                            source_files.push(path);
                         }
                     }
+                }
+            }
+            Err(_) => {
+                // Treat as literal file path
+                let path = pkg_path.join(pattern);
+                if path.exists() {
+                    source_files.push(path);
                 }
             }
         }
     }
 
+    if source_files.is_empty() {
+        return Err(HutError::Other(format!(
+            "No source files matched for {name}. Checked patterns: {}",
+            sources.join(", ")
+        )));
+    }
+
+    status("Compiling", &format!("{} ({} file(s))", name, source_files.len()));
+
+    // Build include flags
+    let mut inc_flags: Vec<String> = Vec::new();
+    for inc in includes {
+        let dir = pkg_path.join(inc);
+        inc_flags.push(format!("-I{}", dir.display()));
+    }
+
+    // Build define flags
+    let mut def_flags: Vec<String> = Vec::new();
+    for def in defines {
+        def_flags.push(format!("-D{}", def));
+    }
+
+    // Compile each source file
+    let obj_dir = pkg_path.join(".hut-build");
+    std::fs::create_dir_all(&obj_dir)?;
+
+    let mut object_files: Vec<PathBuf> = Vec::new();
+    for source in &source_files {
+        let fname = source.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let obj_name = if let Some(stripped) = fname.strip_suffix(".c").or_else(|| fname.strip_suffix(".cpp")).or_else(|| fname.strip_suffix(".cc")).or_else(|| fname.strip_suffix(".cxx")) {
+            format!("{}.o", stripped)
+        } else {
+            format!("{}.o", fname)
+        };
+        let obj_path = obj_dir.join(&obj_name);
+
+        let is_cpp = source.extension().map_or(false, |e| e == "cpp" || e == "cc" || e == "cxx" || e == "c++");
+        let compiler = if is_cpp { "c++" } else { "cc" };
+
+        let mut cmd = Command::new(compiler);
+        cmd.arg("-c");
+        cmd.arg("-fPIC");
+        for flag in &inc_flags {
+            cmd.arg(flag);
+        }
+        for flag in &def_flags {
+            cmd.arg(flag);
+        }
+        for flag in cflags {
+            cmd.arg(flag);
+        }
+        cmd.arg(source);
+        cmd.arg("-o");
+        cmd.arg(&obj_path);
+
+        let output = cmd
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|e| HutError::Other(format!("Failed to compile {} for {name}: {e}", source.display())))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(HutError::Other(format!(
+                "Compilation of {} for {name} failed:\n{stderr}",
+                source.display()
+            )));
+        }
+
+        object_files.push(obj_path);
+    }
+
+    // Archive into static library
+    let lib_name = format!("lib{name}.a");
+    let lib_path = pkg_path.join(&lib_name);
+
+    status("Archiving", &format!("{} → {}", name, lib_name));
+
+    let mut ar_cmd = Command::new("ar");
+    ar_cmd.arg("rcs");
+    ar_cmd.arg(&lib_path);
+    for obj in &object_files {
+        ar_cmd.arg(obj);
+    }
+
+    let ar_output = ar_cmd
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .map_err(|e| HutError::Other(format!("Failed to archive {name}: {e}")))?;
+
+    if !ar_output.status.success() {
+        let stderr = String::from_utf8_lossy(&ar_output.stderr);
+        return Err(HutError::Other(format!("Archiving of {name} failed:\n{stderr}")));
+    }
+
+    // Clean up object files
+    let _ = std::fs::remove_dir_all(&obj_dir);
+
+    let lib_dirs = scan_lib_dirs(pkg_path);
     status("Built", &format!("{} ({} lib dir(s))", name, lib_dirs.len()));
     Ok(lib_dirs)
 }

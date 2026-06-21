@@ -98,9 +98,18 @@ impl<'a> ResolveContext<'a> {
         // Fetch package source (clone from GitHub at the resolved tag).
         let pkg_path = crate::fetcher::fetch_package_source(name, &repo_url, &version)?;
 
-        // Run the package's build command if one is specified.
+        // Build the package: explicit build command, or auto-compile from sources.
         let built_lib_dirs = if !entry.build.is_empty() {
             crate::fetcher::build_package_source(name, &pkg_path, &entry.build)?
+        } else if !entry.sources.is_empty() {
+            crate::fetcher::auto_build_package_source(
+                name,
+                &pkg_path,
+                &entry.sources,
+                &entry.includes,
+                &entry.defines,
+                &entry.cflags,
+            )?
         } else {
             Vec::new()
         };
@@ -197,6 +206,13 @@ impl<'a> ResolveContext<'a> {
 
         let mut link_libraries: Vec<String> = entry.libs.clone();
         link_libraries.extend(pkg.libraries.iter().map(|lib| lib.name.clone()));
+        // Auto-infer library name from package name when sources were compiled.
+        if link_libraries.is_empty() && !entry.sources.is_empty() && entry.build.is_empty() {
+            link_libraries.push(name.to_string());
+        }
+        if link_libraries.is_empty() && !entry.sources.is_empty() && !entry.build.is_empty() {
+            link_libraries.push(name.to_string());
+        }
 
         for t_name in pkg.dependencies.keys() {
             if let Some(rd) = self.packages.get(t_name) {
