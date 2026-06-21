@@ -1,0 +1,6 @@
+[alias]
+lint = "clippy --all-targets -- -D warnings"
+fmt = "fmt"
+fix = "clippy --fix --allow-dirty --allow-staged"
+t = "test"
+b = "build --release"
